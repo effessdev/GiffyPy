@@ -168,9 +168,18 @@ class Timeline(QWidget):
         acc = 0
         for i, (b, e) in enumerate(s.segs):
             if t <= acc + (e - b) or i == len(s.segs) - 1:
-                s.goto(i, min(e, b + t - acc))
+                s.track(i, min(e, b + t - acc))
                 return
             acc += e - b
+
+    def commit_scrub(s):
+        acc = 0
+        for i, (b, e) in enumerate(s.segs):
+            seg_len = e - b
+            if s.head <= acc + seg_len or i == len(s.segs) - 1:
+                s.goto(i, min(e, b + s.head - acc))
+                return
+            acc += seg_len
 
     def paintEvent(s, _):
         p = QPainter(s)
@@ -269,6 +278,7 @@ class Timeline(QWidget):
             if mode == 'scrub':
                 x = ev.position().x()
                 s.scrub(x)
+                s.commit_scrub()
             elif mode == 'move':
                 i, b = s.tl_src_from_head() if hasattr(s, 'tl_src_from_head') else s.src()
                 s.seek.emit(s.cur, b)
