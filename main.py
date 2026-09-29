@@ -239,7 +239,8 @@ class Timeline(QWidget):
         mode, i, x0, orig = s.drag
         d = (x - x0) / s.pps()
         if mode == 'scrub':
-            s.scrub(x)
+            s.head = max(0.0, min(s.total(), (x - s.PAD) / s.pps()))
+            s.update()
         elif mode == 'l':
             s.segs[i][0] = min(max(0, orig[0] + d), orig[1] - MIN)
             s.goto(i, s.segs[i][0])
@@ -263,6 +264,14 @@ class Timeline(QWidget):
             s.update()
 
     def mouseReleaseEvent(s, ev):
+        if s.drag:
+            mode = s.drag[0]
+            if mode == 'scrub':
+                x = ev.position().x()
+                s.scrub(x)
+            elif mode == 'move':
+                i, b = s.tl_src_from_head() if hasattr(s, 'tl_src_from_head') else s.src()
+                s.seek.emit(s.cur, b)
         s.drag, s.fz = None, None
         if s.segs and s.segs != s.before:
             s.committed.emit(s.before)
