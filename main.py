@@ -377,7 +377,8 @@ class Main(QMainWindow):
         s.setStyleSheet("QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
                         "QPushButton:checked{background:#3d8bfd} #go{background:#2ea043;color:white;font-weight:bold;font-size:15px}"
                         "QGraphicsView{background:#111}")
-        for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open)):
+        for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
+                        ("Left", lambda: s.step_frame(-1)), ("Right", lambda: s.step_frame(1))):
             QShortcut(QKeySequence(key), s, activated=fn)
         s.refresh()
         if not FFMPEG or not FFPROBE:
@@ -448,6 +449,22 @@ class Main(QMainWindow):
     # ---- playback / editing
     def playing(s): return s.player.playbackState(
     ) == QMediaPlayer.PlayingState
+
+    def step_frame(s, direction):
+        if not s.tl.segs:
+            return
+        if s.playing():
+            s.player.pause()
+        fps = FPS_STEPS[s.fps.value()]
+        dt = direction * (1.0 / fps)
+        new_head = max(0.0, min(s.tl.total(), s.tl.head + dt))
+        acc = 0.0
+        for i, (b, e) in enumerate(s.tl.segs):
+            seg_len = e - b
+            if new_head <= acc + seg_len or i == len(s.tl.segs) - 1:
+                s.tl.goto(i, min(e, b + new_head - acc))
+                return
+            acc += seg_len
 
     def toggle_play(s):
         if not s.tl.segs:
