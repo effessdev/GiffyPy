@@ -353,7 +353,7 @@ class Main(QMainWindow):
         s.folder = btn("Open folder", lambda: s.path and QDesktopServices.openUrl(
             QUrl.fromLocalFile(os.path.dirname(s.path))))
         right = QVBoxLayout()
-        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info, s.over, s.exp, s.bar, s.status, s.folder):
+        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info, s.over, s.exp, s.status, s.folder):
             right.addWidget(w)
         right.addStretch()
         panel = QWidget()
