@@ -423,6 +423,16 @@ class Main(QMainWindow):
         s.player.setVideoOutput(s.vitem)
         s.scene = QGraphicsScene()
         s.scene.addItem(s.vitem)
+        s.placeholder = QGraphicsTextItem()
+        s.placeholder.setHtml(
+            "<div style='text-align: center;'>"
+            "<span style='font-size: 48px;'>🎬</span><br><br>"
+            "<span style='font-size: 20px; font-weight: bold; color: #ccc;'>Drag & Drop Video Here</span><br><br>"
+            "<span style='font-size: 14px; color: #888;'>or click <b>📂 Open</b> to select a file</span>"
+            "</div>"
+        )
+        s.scene.addItem(s.placeholder)
+        s.setup_placeholder()
         s.view = View(s.scene)
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
@@ -536,6 +546,14 @@ class Main(QMainWindow):
 
     def dropEvent(s, e): s.load(e.mimeData().urls()[0].toLocalFile())
 
+    def setup_placeholder(s):
+        s.scene.setSceneRect(0, 0, 800, 450)
+        s.vitem.hide()
+        s.placeholder.show()
+        s.placeholder.setTextWidth(500)
+        br = s.placeholder.boundingRect()
+        s.placeholder.setPos((800 - br.width()) / 2, (450 - br.height()) / 2)
+
     def load(s, path):
         if not FFPROBE:
             return
@@ -544,6 +562,8 @@ class Main(QMainWindow):
         except Exception as ex:
             s.status.setText(f"Can't read file: {ex}")
             return
+        s.placeholder.hide()
+        s.vitem.show()
         s.path, s.W, s.H, s.undo, s.proxied = path, W, H, [], False
         s.tl.segs, s.tl.dur = [], dur
         s.scene.setSceneRect(0, 0, W, H)
