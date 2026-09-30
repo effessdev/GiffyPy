@@ -160,12 +160,22 @@ class Timeline(QWidget):
 
     def offset(s, i): return sum(e - b for b, e in s.segs[:i])
 
+    def lshift(s):
+        """While dragging a clip's left edge, the clip keeps its right edge in place
+        and its left edge follows the mouse; it only ripples left on release."""
+        if s.drag and s.drag[0] == 'l' and s.drag[1] is not None and s.drag[3]:
+            i = s.drag[1]
+            return i, (s.segs[i][0] - s.drag[3][0]) * s.pps()
+        return None, 0.0
+
     def rects(s):
         x, out = s.PAD - s.ox, []
-        for b, e in s.segs:
+        si, sh = s.lshift()
+        for i, (b, e) in enumerate(s.segs):
             w = (e - b) * s.pps()
-            out.append(QRectF(x, s.RULER, w, s.height() - s.RULER - 8 - s.SB))
-            x += w
+            xs = x + (sh if i == si else 0.0)
+            out.append(QRectF(xs, s.RULER, w, s.height() - s.RULER - 8 - s.SB))
+            x = xs + w
         return out
 
     # ---- zoom / scroll
@@ -300,6 +310,9 @@ class Timeline(QWidget):
             p.fillRect(QRectF(r.right() - 5, r.top() + 8, 4,
                        r.height() - 16), QColor("#ffd54f"))
         x = s.PAD - s.ox + s.head * pps
+        si, sh = s.lshift()
+        if si is not None and si == s.cur:
+            x += sh
         p.setPen(QPen(QColor("#ff4d4f"), 2))
         p.drawLine(QPointF(x, 0), QPointF(x, s.height() - s.SB))
 
