@@ -470,7 +470,7 @@ class Main(QMainWindow):
 
         # export panel
         s.fmt = QComboBox()
-        s.fmt.addItems(["WebP", "GIF"])
+        s.fmt.addItems(["WebP", "GIF", "MP4", "WebM", "MOV", "MKV"])
         s.fmt.currentIndexChanged.connect(s.refresh)
 
         def slider(lo, hi, v):
@@ -694,8 +694,16 @@ class Main(QMainWindow):
     def export(s):
         if not (s.path and s.tl.segs and FFMPEG):
             return
-        gif = s.fmt.currentText() == "GIF"
-        ext = ".gif" if gif else ".webp"
+        fmt = s.fmt.currentText()
+        ext_map = {
+            "WebP": ".webp",
+            "GIF": ".gif",
+            "MP4": ".mp4",
+            "WebM": ".webm",
+            "MOV": ".mov",
+            "MKV": ".mkv",
+        }
+        ext = ext_map.get(fmt, ".mp4")
         base = os.path.splitext(s.path)[0]
         out = base + ext
         if os.path.exists(out) and not s.over.isChecked():
@@ -714,14 +722,23 @@ class Main(QMainWindow):
               else []) + [f"fps={fps}", f"scale={W}:{H}:flags=lanczos"]
         fc = ";".join(parts) + ";" + "".join(f"[v{i}]" for i in range(
             len(segs))) + f"concat=n={len(segs)}:v=1:a=0,{','.join(vf)}"
-        if gif:
-            colors = 16 + s.q.value() * 240 // 100
+        q = s.q.value()
+        if fmt == "GIF":
+            colors = 16 + q * 240 // 100
             fc += f"[o];[o]split[a][b];[a]palettegen=max_colors={colors}:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle[out]"
             enc = ["-loop", "0"]
-        else:
+        elif fmt == "WebP":
             fc += "[out]"
             enc = ["-c:v", "libwebp_anim", "-lossless", "0", "-q:v",
-                   str(s.q.value()), "-compression_level", "4", "-loop", "0"]
+                   str(q), "-compression_level", "4", "-loop", "0"]
+        elif fmt == "WebM":
+            fc += "[out]"
+            crf = int(63 - q * 48 / 100)
+            enc = ["-c:v", "libvpx-vp9", "-crf", str(crf), "-b:v", "0"]
+        else:  # MP4, MOV, MKV
+            fc += "[out]"
+            crf = int(51 - q * 33 / 100)
+            enc = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", str(crf)]
         s.exp_total = s.tl.total()
         s.bar.setValue(0)
         s.exp.setEnabled(False)
