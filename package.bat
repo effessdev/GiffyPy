@@ -1,1 +1,1 @@
-pyinstaller --onefile --windowed --name GiffyPy --icon=icon.ico --add-data="icon.ico;." --clean main.py
+pyinstaller --onedir --windowed --name GiffyPy --icon=icon.ico --add-data="icon.ico;." --clean main.py
