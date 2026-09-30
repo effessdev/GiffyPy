@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import copy
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QSizeF, QUrl, QTimer, QProcess
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QShortcut, QKeySequence, QDesktopServices
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QShortcut, QKeySequence, QDesktopServices, QIcon
 from PySide6.QtWidgets import *
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
@@ -796,8 +796,16 @@ class Main(QMainWindow):
             s.status.setText("Export failed:\n" + err[-400:])
 
 
+def resource_path(name):
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, name)
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    icon_path = resource_path("icon.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     w = Main()
     w.showMaximized()
     if len(sys.argv) > 1:
