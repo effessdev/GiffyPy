@@ -2,7 +2,7 @@
 
 A simple video editor made specifically for editing screen recordings. Export videos to animated WebP, GIF, MP4, WebM, MOV, or MKV.
 
-![GiffyPy Overview Placeholder](docs/images/overview_placeholder.png)
+<img width="1292" height="695" alt="image" src="https://github.com/user-attachments/assets/bc3a38c5-7a6f-4e84-a1c4-39b8853938e4" />
 
 ## Features
 
@@ -22,8 +22,6 @@ A simple video editor made specifically for editing screen recordings. Export vi
   - Automatic background proxy generation for codecs not natively supported by Qt.
 
 ## Interface Layout
-
-![Interface Layout Placeholder](docs/images/interface_placeholder.png)
 
 1. **Video Preview Panel:** Shows real-time playback and interactive crop region controls.
 2. **Interactive Timeline:** Displays all clips sequentially. Scrub top ruler, trim clip handles, or reorder segments easily.
