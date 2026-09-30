@@ -156,8 +156,7 @@ class Timeline(QWidget):
     def pps(s):
         if s.fz:
             return s.fz
-        f = s.fit()
-        return f if s.auto else max(s.z, f)
+        return s.fit() if s.auto else s.z
 
     def offset(s, i): return sum(e - b for b, e in s.segs[:i])
 
@@ -203,11 +202,12 @@ class Timeline(QWidget):
             return
         ax = s.width() / 2 if ax is None else ax
         old = s.pps()
-        new = max(s.fit(), min(s.MAXZ, old * f))
+        # no lower bound tied to fit: zoom out freely
+        new = max(1e-6, min(s.MAXZ, old * f))
         # time under the anchor stays put
         t = (ax - s.PAD + s.ox) / old
         s.z = new
-        s.auto = new <= s.fit() * 1.001
+        s.auto = False
         s.ox = s.PAD + t * new - ax
         s.sync()
         s.update()
