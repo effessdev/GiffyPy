@@ -131,30 +131,113 @@ class Timeline(QWidget):
     seek = Signal(int, float)      # clip index, source time
     committed = Signal(object)     # previous state (for undo)
     changed = Signal()
-    PAD, EDGE, RULER = 10, 7, 20
+    PAD, EDGE, RULER, SB = 10, 7, 20, 14
+    MAXZ = 4000.0  # max zoom (pixels per second)
 
     def __init__(s):
         super().__init__()
         s.segs, s.dur, s.cur, s.head, s.drag, s.fz = [], 0.0, 0, 0.0, None, None
-        s.setMinimumHeight(96)
+        s.before, s.pan = [], None
+        # auto = fit-to-width; z = px/sec; ox = scroll offset (px)
+        s.auto, s.z, s.ox = True, 100.0, 0.0
+        s.setMinimumHeight(110)
         s.setMouseTracking(True)
+        lay = QVBoxLayout(s)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addStretch()
+        s.sb = QScrollBar(Qt.Horizontal)
+        s.sb.setFixedHeight(s.SB)
+        s.sb.valueChanged.connect(s.on_scrollbar)
+        lay.addWidget(s.sb)
 
     def total(s): return sum(e - b for b, e in s.segs)
-    def pps(s): return s.fz or (s.width() - 2 * s.PAD) / (s.total() or 1e-9)
+    def fit(s): return max(1e-3, (s.width() - 2 * s.PAD) / (s.total() or 1e-9))
+
+    def pps(s):
+        if s.fz:
+            return s.fz
+        f = s.fit()
+        return f if s.auto else max(s.z, f)
+
     def offset(s, i): return sum(e - b for b, e in s.segs[:i])
 
     def rects(s):
-        x, out = s.PAD, []
+        x, out = s.PAD - s.ox, []
         for b, e in s.segs:
             w = (e - b) * s.pps()
-            out.append(QRectF(x, s.RULER, w, s.height() - s.RULER - 8))
+            out.append(QRectF(x, s.RULER, w, s.height() - s.RULER - 8 - s.SB))
             x += w
         return out
+
+    # ---- zoom / scroll
+    def max_ox(s): return max(0.0, s.total() * s.pps() + 2 * s.PAD - s.width())
+
+    def sync(s):
+        s.ox = 0.0 if (s.auto and not s.fz) else max(
+            0.0, min(s.max_ox(), s.ox))
+        m = int(s.max_ox())
+        s.sb.blockSignals(True)
+        s.sb.setRange(0, m)
+        s.sb.setPageStep(max(1, s.width() - 2 * s.PAD))
+        s.sb.setValue(int(s.ox))
+        s.sb.setEnabled(m > 0)
+        s.sb.blockSignals(False)
+
+    def on_scrollbar(s, v):
+        s.ox = float(v)
+        s.update()
+
+    def follow(s, chase=True):
+        """Keep the playhead visible (used while playing / stepping)."""
+        if chase and not s.auto and s.segs:
+            vw = s.width() - 2 * s.PAD
+            hx = s.head * s.pps()
+            if hx < s.ox:
+                s.ox = hx - vw * 0.1
+            elif hx > s.ox + vw:
+                s.ox = hx - vw * 0.9
+        s.sync()
+
+    def zoom_by(s, f, ax=None):
+        if not s.segs or s.fz:
+            return
+        ax = s.width() / 2 if ax is None else ax
+        old = s.pps()
+        new = max(s.fit(), min(s.MAXZ, old * f))
+        # time under the anchor stays put
+        t = (ax - s.PAD + s.ox) / old
+        s.z = new
+        s.auto = new <= s.fit() * 1.001
+        s.ox = s.PAD + t * new - ax
+        s.sync()
+        s.update()
+
+    def fit_view(s):
+        s.auto, s.ox = True, 0.0
+        s.sync()
+        s.update()
+
+    def resizeEvent(s, e):
+        super().resizeEvent(e)
+        s.sync()
+
+    def wheelEvent(s, ev):
+        if not s.segs:
+            return
+        d = ev.angleDelta()
+        if ev.modifiers() & Qt.ControlModifier:
+            s.zoom_by(1.15 ** (d.y() / 120), ev.position().x())
+        else:
+            s.ox -= (d.x() or d.y())
+            s.sync()
+            s.update()
+        ev.accept()
 
     def track(s, i, t):
         s.cur = i
         b, e = s.segs[i]
         s.head = s.offset(i) + min(max(t - b, 0), e - b)
+        s.follow(s.drag is None)
         s.update()
 
     def goto(s, i, t): s.track(i, t); s.seek.emit(i, t)
@@ -164,7 +247,7 @@ class Timeline(QWidget):
         return s.cur, b + s.head - s.offset(s.cur)
 
     def scrub(s, x):
-        t = max(0, min(s.total(), (x - s.PAD) / s.pps()))
+        t = max(0, min(s.total(), (x - s.PAD + s.ox) / s.pps()))
         acc = 0
         for i, (b, e) in enumerate(s.segs):
             if t <= acc + (e - b) or i == len(s.segs) - 1:
@@ -184,15 +267,24 @@ class Timeline(QWidget):
     def paintEvent(s, _):
         p = QPainter(s)
         p.setRenderHint(QPainter.Antialiasing)
+        W, pps, tot = s.width(), s.pps(), s.total()
         p.fillRect(s.rect(), QColor("#1e1f22"))
-        p.fillRect(QRectF(0, 0, s.width(), s.RULER - 4), QColor("#2b2d31"))
+        p.fillRect(QRectF(0, 0, W, s.RULER - 4), QColor("#2b2d31"))
         p.setPen(QColor("#888"))
-        step = 1 if s.total() < 30 else 5 if s.total() < 150 else 30
-        for t in range(0, int(s.total()) + 1, step):
-            x = s.PAD + t * s.pps()
+        step = next((c for c in (0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800)
+                     if c * pps >= 70), 3600)
+        k = max(0, int((s.ox - s.PAD) / pps / step))
+        while k * step <= tot + 1e-9:
+            x = s.PAD - s.ox + k * step * pps
+            if x > W:
+                break
             p.drawLine(QPointF(x, 6), QPointF(x, s.RULER - 6))
-            p.drawText(QPointF(x + 3, 13), f"{t}s")
+            p.drawText(QPointF(x + 3, 13), f"{round(k * step, 2):g}s")
+            k += 1
+        view = QRectF(0, 0, W, s.height())
         for i, r in enumerate(s.rects()):
+            if r.right() < 0 or r.left() > W:
+                continue
             sel = i == s.cur
             p.setBrush(QColor("#3d8bfd") if sel else QColor("#4a5568"))
             p.setPen(QPen(QColor("white") if sel else QColor(
@@ -200,15 +292,16 @@ class Timeline(QWidget):
             p.drawRoundedRect(r, 5, 5)
             p.setPen(Qt.white)
             b, e = s.segs[i]
-            p.drawText(r.adjusted(8, 0, -8, 0),
+            vr = r.intersected(view)
+            p.drawText(vr.adjusted(8, 0, -8, 0),
                        Qt.AlignCenter, f"{e - b:.2f}s")
             p.fillRect(QRectF(r.left() + 1, r.top() + 8, 4,
                        r.height() - 16), QColor("#ffd54f"))
             p.fillRect(QRectF(r.right() - 5, r.top() + 8, 4,
                        r.height() - 16), QColor("#ffd54f"))
-        x = s.PAD + s.head * s.pps()
+        x = s.PAD - s.ox + s.head * pps
         p.setPen(QPen(QColor("#ff4d4f"), 2))
-        p.drawLine(QPointF(x, 0), QPointF(x, s.height()))
+        p.drawLine(QPointF(x, 0), QPointF(x, s.height() - s.SB))
 
     def hit(s, x, y):
         if y < s.RULER:
@@ -224,7 +317,11 @@ class Timeline(QWidget):
 
     def mousePressEvent(s, ev):
         x, y = ev.position().x(), ev.position().y()
-        if not s.segs:
+        if ev.button() == Qt.MiddleButton:      # pan
+            s.pan = (x, s.ox)
+            s.setCursor(Qt.ClosedHandCursor)
+            return
+        if ev.button() != Qt.LeftButton or not s.segs:
             return
         s.before = copy.deepcopy(s.segs)
         s.fz = s.pps()
@@ -240,6 +337,11 @@ class Timeline(QWidget):
 
     def mouseMoveEvent(s, ev):
         x, y = ev.position().x(), ev.position().y()
+        if s.pan:
+            s.ox = s.pan[1] - (x - s.pan[0])
+            s.sync()
+            s.update()
+            return
         if s.drag is None:
             _, m = s.hit(x, y) if s.segs else (0, 'scrub')
             s.setCursor(Qt.SizeHorCursor if m in 'lr' and m !=
@@ -248,7 +350,7 @@ class Timeline(QWidget):
         mode, i, x0, orig = s.drag
         d = (x - x0) / s.pps()
         if mode == 'scrub':
-            s.head = max(0.0, min(s.total(), (x - s.PAD) / s.pps()))
+            s.head = max(0.0, min(s.total(), (x - s.PAD + s.ox) / s.pps()))
             s.update()
         elif mode == 'l':
             s.segs[i][0] = min(max(0, orig[0] + d), orig[1] - MIN)
@@ -257,7 +359,7 @@ class Timeline(QWidget):
             s.segs[i][1] = max(min(s.dur, orig[1] + d), orig[0] + MIN)
             s.goto(i, max(s.segs[i][0], s.segs[i][1] - 0.04))
         elif mode == 'move' and abs(x - x0) > 4:
-            cx, n = s.PAD, 0
+            cx, n = s.PAD - s.ox, 0
             for k, (b, e) in enumerate(s.segs):
                 if k == i:
                     continue
@@ -273,19 +375,25 @@ class Timeline(QWidget):
             s.update()
 
     def mouseReleaseEvent(s, ev):
-        if s.drag:
-            mode = s.drag[0]
-            if mode == 'scrub':
-                x = ev.position().x()
-                s.scrub(x)
-                s.commit_scrub()
-            elif mode == 'move':
-                i, b = s.tl_src_from_head() if hasattr(s, 'tl_src_from_head') else s.src()
-                s.seek.emit(s.cur, b)
+        if s.pan and ev.button() == Qt.MiddleButton:
+            s.pan = None
+            s.setCursor(Qt.ArrowCursor)
+            return
+        if s.drag is None:
+            return
+        mode = s.drag[0]
+        if mode == 'scrub':
+            x = ev.position().x()
+            s.scrub(x)
+            s.commit_scrub()
+        elif mode == 'move':
+            i, b = s.src()
+            s.seek.emit(s.cur, b)
         s.drag, s.fz = None, None
         if s.segs and s.segs != s.before:
             s.committed.emit(s.before)
             s.changed.emit()
+        s.sync()
         s.update()
 
 
@@ -331,11 +439,15 @@ class Main(QMainWindow):
         for b in (btn("📂 Open", s.open, "Ctrl+O"), s.playBtn, btn("✂ Split", s.split, "S"),
                   btn("🗑 Delete clip", s.delete, "Del"), btn(
                       "↶ Undo", s.do_undo, "Ctrl+Z"), s.cropBtn,
-                  btn("Reset crop", lambda: s.crop and s.crop.reset())):
+                  btn("Reset crop", lambda: s.crop and s.crop.reset()),
+                  btn("🔍−", lambda: s.tl.zoom_by(1 / 1.5), "Zoom out (Ctrl+-)"),
+                  btn("🔍+", lambda: s.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
+                  btn("Fit", lambda: s.tl.fit_view(), "Fit timeline (Ctrl+0)")):
             bar.addWidget(b)
         bar.addStretch()
         hint = QLabel(
-            "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete")
+            "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
+            "Wheel scroll · Ctrl+Wheel zoom · middle-drag pan")
         hint.setStyleSheet("color:#888")
         left = QVBoxLayout()
         left.addWidget(s.view, 1)
@@ -388,7 +500,11 @@ class Main(QMainWindow):
                         "QPushButton:checked{background:#3d8bfd} #go{background:#2ea043;color:white;font-weight:bold;font-size:15px}"
                         "QGraphicsView{background:#111}")
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
-                        ("Left", lambda: s.step_frame(-1)), ("Right", lambda: s.step_frame(1))):
+                        ("Left", lambda: s.step_frame(-1)
+                         ), ("Right", lambda: s.step_frame(1)),
+                        ("Ctrl+=", lambda: s.tl.zoom_by(1.5)
+                         ), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
+                        ("Ctrl+-", lambda: s.tl.zoom_by(1 / 1.5)), ("Ctrl+0", lambda: s.tl.fit_view())):
             QShortcut(QKeySequence(key), s, activated=fn)
         s.refresh()
         if not FFMPEG or not FFPROBE:
@@ -436,6 +552,7 @@ class Main(QMainWindow):
     def init_segs(s, dur):
         s.tl.dur = dur
         s.tl.segs = [[0.0, dur]]
+        s.tl.fit_view()
         s.tl.goto(0, 0.0)
         s.refresh()
 
