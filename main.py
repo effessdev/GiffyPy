@@ -415,7 +415,6 @@ class Main(QMainWindow):
     def __init__(s):
         super().__init__()
         s.setWindowTitle("GiffyPy")
-        s.resize(1200, 760)
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
         s.player = QMediaPlayer()
@@ -800,7 +799,7 @@ class Main(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = Main()
-    w.show()
+    w.showMaximized()
     if len(sys.argv) > 1:
         w.load(sys.argv[1])
     sys.exit(app.exec())
