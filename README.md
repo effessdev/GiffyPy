@@ -1,6 +1,6 @@
 # GiffyPy
 
-A simple video editor made specifically for editing screen recordings. Export videos to animated WebP, GIF, MP4, WebM, MOV, or MKV.
+A simple video editor made **specifically for editing screen recordings**. Export videos to animated WebP, GIF, MP4, WebM, MOV, or MKV.
 
 <img width="1292" height="741" alt="image" src="https://github.com/user-attachments/assets/d7a5bb0a-408a-45dc-8851-5003f3da7c6c" />
 
