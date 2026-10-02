@@ -440,9 +440,10 @@ class Main(QMainWindow):
         s.sink = None
         try:
             s.sink = s.vitem.videoSink()
-            s.sink.frameObserved.connect(s.on_real_frame)
+            # Python name is videoFrameChanged; frameObserved is the C++ alias
+            getattr(s.sink, 'videoFrameChanged', None).connect(s.on_real_frame)
         except Exception:  # older PySide without QGraphicsVideoItem.videoSink()
-            pass
+            s.sink = None
         s.placeholder = QGraphicsTextItem()
         s.placeholder.setHtml(
             "<div style='text-align: center;'>"
