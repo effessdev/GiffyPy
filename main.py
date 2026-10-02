@@ -14,7 +14,8 @@ from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 FFMPEG, FFPROBE = shutil.which("ffmpeg"), shutil.which("ffprobe")
 FPS_STEPS = [0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 30, 50, 60]
-# low-res image sequence for instant scrub preview
+# low-res image sequence for instant scrub preview; PREVIEW_FPS is the fallback seq rate
+# used only when the source frame rate can't be probed (some GIFs / VFR files)
 PREVIEW_FPS, PREVIEW_H = 12, 480
 MIN = 0.05  # minimum clip length (s)
 FILTER = ("Video (*.mp4 *.mkv *.mov *.webm *.avi *.flv *.ts *.m2ts *.m4v *.wmv *.mpg *.mpeg *.ogv *.3gp *.gif);;All files (*)")
@@ -22,7 +23,7 @@ FILTER = ("Video (*.mp4 *.mkv *.mov *.webm *.avi *.flv *.ts *.m2ts *.m4v *.wmv *
 
 def probe(path):
     r = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries",
-                        "stream=width,height,duration:format=duration", "-of", "json", path],
+                        "stream=width,height,duration,avg_frame_rate:format=duration", "-of", "json", path],
                        capture_output=True, text=True)
     j = json.loads(r.stdout)
     st = j["streams"][0]
@@ -33,7 +34,12 @@ def probe(path):
             break
         except (TypeError, ValueError):
             pass
-    return int(st["width"]), int(st["height"]), dur
+    try:  # avg_frame_rate is a fraction like "30000/1001"; "0/0" when unknown
+        num, den = st.get("avg_frame_rate", "0/1").split("/")
+        fps = float(num) / float(den) if float(den) else 0.0
+    except (ValueError, ZeroDivisionError):
+        fps = 0.0
+    return int(st["width"]), int(st["height"]), dur, fps
 
 
 # ---------------------------------------------------------------- crop overlay
@@ -428,6 +434,7 @@ class Main(QMainWindow):
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
+        s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
         s.player = QMediaPlayer()
         s.vitem = QGraphicsVideoItem()
         s.player.setVideoOutput(s.vitem)
@@ -580,7 +587,7 @@ class Main(QMainWindow):
         if not FFPROBE:
             return
         try:
-            W, H, dur = probe(path)
+            W, H, dur, s.src_fps = probe(path)
         except Exception as ex:
             s.status.setText(f"Can't read file: {ex}")
             return
@@ -649,15 +656,18 @@ class Main(QMainWindow):
             QTimer.singleShot(1000, lambda: shutil.rmtree(
                 old, ignore_errors=True))
         s.status.setText("Building live preview…")
+        # match the source frame rate 1:1 so every proxy frame is a real source frame
+        s.prev_fps = min(
+            240.0, s.src_fps) if s.src_fps > 0 else float(PREVIEW_FPS)
         s.prev_proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
-                                   f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", str(PREVIEW_FPS),
+                                   f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", f"{s.prev_fps:.9g}",
                                    "-q:v", "4", out])
 
     def show_preview(s, t):
         """Paint the proxy frame nearest source time t over the (slow) video item."""
         if not (s.prev_dir and s.H) or s.playing():
             return
-        idx = max(1, int(round(max(0.0, t) * PREVIEW_FPS)) + 1)
+        idx = max(1, int(round(max(0.0, t) * s.prev_fps)) + 1)
         if s.pidx == idx and s.pitem.isVisible():
             return
         pm = s.prev_cache.get(idx)
