@@ -7,13 +7,15 @@ import subprocess
 import tempfile
 import copy
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QSizeF, QUrl, QTimer, QProcess
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QShortcut, QKeySequence, QDesktopServices, QIcon
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QShortcut, QKeySequence, QDesktopServices, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import *
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 FFMPEG, FFPROBE = shutil.which("ffmpeg"), shutil.which("ffprobe")
 FPS_STEPS = [0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 30, 50, 60]
+# low-res image sequence for instant scrub preview
+PREVIEW_FPS, PREVIEW_H = 12, 480
 MIN = 0.05  # minimum clip length (s)
 FILTER = ("Video (*.mp4 *.mkv *.mov *.webm *.avi *.flv *.ts *.m2ts *.m4v *.wmv *.mpg *.mpeg *.ogv *.3gp *.gif);;All files (*)")
 
@@ -129,6 +131,8 @@ class View(QGraphicsView):
 class Timeline(QWidget):
     """Clips laid out in edit order. Top strip = scrub, drag clip = reorder, drag clip edge = trim."""
     seek = Signal(int, float)      # clip index, source time
+    # live scrub position (source time), proxy frame only
+    preview = Signal(float)
     committed = Signal(object)     # previous state (for undo)
     changed = Signal()
     PAD, EDGE, RULER, SB = 10, 7, 20, 14
@@ -262,6 +266,7 @@ class Timeline(QWidget):
         for i, (b, e) in enumerate(s.segs):
             if t <= acc + (e - b) or i == len(s.segs) - 1:
                 s.track(i, min(e, b + t - acc))
+                s.preview.emit(s.src()[1])
                 return
             acc += e - b
 
@@ -363,14 +368,16 @@ class Timeline(QWidget):
         mode, i, x0, orig = s.drag
         d = (x - x0) / s.pps()
         if mode == 'scrub':
-            s.head = max(0.0, min(s.total(), (x - s.PAD + s.ox) / s.pps()))
-            s.update()
+            s.scrub(x)
         elif mode == 'l':
             s.segs[i][0] = min(max(0, orig[0] + d), orig[1] - MIN)
-            s.goto(i, s.segs[i][0])
+            s.track(i, s.segs[i][0])
+            s.preview.emit(s.segs[i][0])
         elif mode == 'r':
             s.segs[i][1] = max(min(s.dur, orig[1] + d), orig[0] + MIN)
-            s.goto(i, max(s.segs[i][0], s.segs[i][1] - 0.04))
+            t = max(s.segs[i][0], s.segs[i][1] - 0.04)
+            s.track(i, t)
+            s.preview.emit(t)
         elif mode == 'move' and abs(x - x0) > 4:
             cx, n = s.PAD - s.ox, 0
             for k, (b, e) in enumerate(s.segs):
@@ -399,6 +406,9 @@ class Timeline(QWidget):
             x = ev.position().x()
             s.scrub(x)
             s.commit_scrub()
+        elif mode in ('l', 'r'):
+            # trim done: swap proxy for the real frame
+            s.seek.emit(*s.src())
         elif mode == 'move':
             i, b = s.src()
             s.seek.emit(s.cur, b)
@@ -417,11 +427,22 @@ class Main(QMainWindow):
         s.setWindowTitle("GiffyPy")
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
+        s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
         s.player = QMediaPlayer()
         s.vitem = QGraphicsVideoItem()
         s.player.setVideoOutput(s.vitem)
         s.scene = QGraphicsScene()
         s.scene.addItem(s.vitem)
+        s.pitem = QGraphicsPixmapItem()  # live-scrub proxy frame, layered over the video
+        s.pitem.setZValue(0.5)
+        s.pitem.hide()
+        s.scene.addItem(s.pitem)
+        s.sink = None
+        try:
+            s.sink = s.vitem.videoSink()
+            s.sink.frameObserved.connect(s.on_real_frame)
+        except Exception:  # older PySide without QGraphicsVideoItem.videoSink()
+            pass
         s.placeholder = QGraphicsTextItem()
         s.placeholder.setHtml(
             "<div style='text-align: center;'>"
@@ -438,7 +459,8 @@ class Main(QMainWindow):
         s.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.tl = Timeline()
-        s.tl.seek.connect(lambda i, t: s.player.setPosition(int(t * 1000)))
+        s.tl.seek.connect(s.on_seek)
+        s.tl.preview.connect(s.show_preview)
         s.tl.committed.connect(s.undo.append)
         s.tl.changed.connect(s.refresh)
         s.player.durationChanged.connect(s.on_duration)
@@ -578,6 +600,7 @@ class Main(QMainWindow):
         s.setWindowTitle(f"GiffyPy — {os.path.basename(path)}")
         s.status.setText("")
         s.bar.setValue(0)
+        s.start_preview(path)
         if dur > 0:
             s.init_segs(dur)
 
@@ -604,6 +627,64 @@ class Main(QMainWindow):
                            s.player.pause(), s.status.setText("")))
         p.start(FFMPEG, ["-y", "-loglevel", "error", "-i", s.path, "-an", "-vf", "scale=-2:min(720\\,ih)", "-c:v", "libx264",
                          "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p", proxy])
+
+    # ---- live preview (low-res image sequence for instant scrubbing)
+    def start_preview(s, path):
+        """Generate a small JPEG sequence in the background: scrub = O(1) file read, no decoding."""
+        if s.prev_proc and s.prev_proc.state() != QProcess.NotRunning:
+            s.prev_proc.kill()
+            s.prev_proc.waitForFinished(2000)
+        old, s.prev_dir, s.prev_cache, s.pidx = s.prev_dir, None, {}, -1
+        s.pitem.hide()
+        if not FFMPEG:
+            return
+        s.prev_dir = tempfile.mkdtemp(prefix="giffypy_prev_")
+        out = os.path.join(s.prev_dir, "f%06d.jpg")
+        s.prev_proc = QProcess(s)
+        s.prev_proc.finished.connect(
+            lambda *_, o=s.prev_proc: (o.deleteLater(),
+                                       s.status.setText("") if s.status.text() == "Building live preview…" else None))
+        if old:
+            QTimer.singleShot(1000, lambda: shutil.rmtree(
+                old, ignore_errors=True))
+        s.status.setText("Building live preview…")
+        s.prev_proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
+                                   f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", str(PREVIEW_FPS),
+                                   "-q:v", "4", out])
+
+    def show_preview(s, t):
+        """Paint the proxy frame nearest source time t over the (slow) video item."""
+        if not (s.prev_dir and s.H) or s.playing():
+            return
+        idx = max(1, int(round(max(0.0, t) * PREVIEW_FPS)) + 1)
+        if s.pidx == idx and s.pitem.isVisible():
+            return
+        pm = s.prev_cache.get(idx)
+        if pm is None:
+            img = QImage(os.path.join(s.prev_dir, f"f{idx:06d}.jpg"))
+            if img.isNull():  # not generated yet
+                return
+            pm = QPixmap.fromImage(img)
+            if len(s.prev_cache) > 120:
+                s.prev_cache.clear()
+            s.prev_cache[idx] = pm
+        s.pidx = idx
+        s.pitem.setPixmap(pm)
+        s.pitem.setScale(s.H / pm.height())
+        s.pitem.show()
+
+    def on_seek(s, i, t):
+        s.player.setPosition(int(t * 1000))
+        if not s.playing():
+            # instant rough frame; swapped out when the real one lands
+            s.show_preview(t)
+            if s.sink is None:  # no way to observe the real frame -> hide after a beat
+                QTimer.singleShot(300, s.pitem.hide)
+
+    def on_real_frame(s, *_):
+        """QVideoSink delivered a freshly decoded frame -> retire the proxy."""
+        if not s.playing():
+            s.pitem.hide()
 
     # ---- playback / editing
     def playing(s): return s.player.playbackState(
@@ -633,6 +714,7 @@ class Main(QMainWindow):
         else:
             if s.tl.head >= s.tl.total() - 0.03:
                 s.tl.goto(0, s.tl.segs[0][0])
+            s.pitem.hide()
             s.player.play()
 
     def tick(s):
@@ -688,6 +770,13 @@ class Main(QMainWindow):
         if s.crop:
             s.crop.setVisible(s.cropBtn.isChecked())
             s.refresh()
+
+    def closeEvent(s, e):
+        if s.prev_proc and s.prev_proc.state() != QProcess.NotRunning:
+            s.prev_proc.kill()
+        if s.prev_dir:
+            shutil.rmtree(s.prev_dir, ignore_errors=True)
+        super().closeEvent(e)
 
     # ---- export
     def crop_rect(s):
