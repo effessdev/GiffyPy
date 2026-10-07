@@ -15,6 +15,11 @@ A simple video editor made **specifically for editing screen recordings**. Expor
 - **Flexible Export Options:**
   - Export to **WebP**, **GIF**, **MP4**, **WebM**, **MOV**, or **MKV**.
   - Adjust framerate (0.5 to 60 FPS), scaling/resolution %, and quality settings (automatic palette generation with dither controls for GIFs).
+  - Four ways to save, each with its own button:
+    - **Overwrite Existing File:** replaces the file next to the source video, with a confirmation prompt first.
+    - **Save a Numbered Copy:** saves next to the source video as `name (edited N)` without replacing anything.
+    - **Save To…:** opens a file dialog so you can pick the location and file name.
+    - **Copy to Clipboard:** exports and copies the result to the clipboard (GIF and WebP only).
 - **Fast Timeline Navigation & Controls:**
   - Scroll, zoom (`Ctrl + Wheel`), and pan (`Middle-click drag`) through complex timelines.
   - Frame-by-frame navigation using arrow keys.
@@ -25,7 +30,7 @@ A simple video editor made **specifically for editing screen recordings**. Expor
 
 1. **Video Preview Panel:** Shows real-time playback and interactive crop region controls.
 2. **Interactive Timeline:** Displays all clips sequentially. Scrub top ruler, trim clip handles, or reorder segments easily.
-3. **Export Panel:** Fine-tune format, FPS, resolution scale, and output quality before rendering.
+3. **Export Panel:** Fine-tune format, FPS, resolution scale, and output quality, then choose how to save with one of the four export buttons (Overwrite, Numbered Copy, Save To…, Copy to Clipboard).
 
 ## Prerequisites
 
