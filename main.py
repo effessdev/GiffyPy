@@ -556,7 +556,9 @@ class Main(QMainWindow):
         c.setLayout(root)
         s.setCentralWidget(c)
         s.setStyleSheet("QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
+                        "QPushButton:disabled{background:#2b2d30;color:#555}"
                         "QPushButton:checked{background:#3d8bfd} #go{background:#2ea043;color:white;font-weight:bold;font-size:15px}"
+                        "#go:disabled{background:#1a3520;color:#555}"
                         "QGraphicsView{background:#111}")
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
                         ("Left", lambda: s.step_frame(-1)
@@ -816,7 +818,8 @@ class Main(QMainWindow):
         s.qL.setText(f"Quality: {s.q.value()}" +
                      ("  (colors)" if s.fmt.currentText() == "GIF" else ""))
         s.info.setText(f"{tot:.1f}s → ~{int(tot * fps)} frames")
-        s.clipBtn.setEnabled(not s.busy and s.fmt.currentText() in CLIP_FMTS)
+        s.clipBtn.setEnabled(bool(s.path and s.tl.segs)
+                             and not s.busy and s.fmt.currentText() in CLIP_FMTS)
 
     def export(s):
         if not (s.path and s.tl.segs and FFMPEG):
