@@ -524,18 +524,26 @@ class Main(QMainWindow):
         s.scale = slider(5, 100, 60)
         s.q = slider(1, 100, 75)
         s.fpsL, s.scL, s.qL, s.info = QLabel(), QLabel(), QLabel(), QLabel()
-        s.over = QCheckBox(
-            "Overwrite existing file\n(otherwise saves a numbered copy)")
-        s.over.setChecked(True)
-        s.exp = QPushButton("Export")
-        s.exp.setObjectName("go")
-        s.exp.setMinimumHeight(46)
-        s.exp.clicked.connect(s.export)
-        s.clipBtn = QPushButton("📋 Copy to Clipboard")
-        s.clipBtn.setMinimumHeight(36)
-        s.clipBtn.setToolTip(
-            "Export and copy to clipboard (only GIF / WebP support this)")
-        s.clipBtn.clicked.connect(s.copy_to_clipboard)
+
+        def exp_btn(text, name, tip, fn):
+            b = QPushButton(text)
+            b.setObjectName(name)
+            b.setMinimumHeight(40)
+            b.setToolTip(tip)
+            b.clicked.connect(fn)
+            return b
+        s.overBtn = exp_btn("Overwrite Existing File", "ow",
+                            "Save next to the source video, replacing any existing file (asks to confirm)",
+                            lambda: s.export("overwrite"))
+        s.numBtn = exp_btn("Save a Numbered Copy", "go",
+                           "Save next to the source video as \"name (edited N)\" without replacing anything",
+                           lambda: s.export("numbered"))
+        s.saveAsBtn = exp_btn("Save To…", "sa",
+                              "Choose where to save the file",
+                              lambda: s.export("saveas"))
+        s.clipBtn = exp_btn("Copy to Clipboard", "cp",
+                            "Export and copy to clipboard (only GIF / WebP support this)",
+                            s.copy_to_clipboard)
         s.bar = QProgressBar()
         s.bar.setRange(0, 100)
         s.status = QLabel()
@@ -543,7 +551,8 @@ class Main(QMainWindow):
         s.folder = btn("Open folder", lambda: s.path and QDesktopServices.openUrl(
             QUrl.fromLocalFile(os.path.dirname(s.path))))
         right = QVBoxLayout()
-        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info, s.over, s.exp, s.clipBtn, s.status, s.folder):
+        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info,
+                  s.overBtn, s.numBtn, s.saveAsBtn, s.clipBtn, s.status, s.folder):
             right.addWidget(w)
         right.addStretch()
         panel = QWidget()
@@ -557,8 +566,10 @@ class Main(QMainWindow):
         s.setCentralWidget(c)
         s.setStyleSheet("QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
                         "QPushButton:disabled{background:#2b2d30;color:#555}"
-                        "QPushButton:checked{background:#3d8bfd} #go{background:#2ea043;color:white;font-weight:bold;font-size:15px}"
-                        "#go:disabled{background:#1a3520;color:#555}"
+                        "QPushButton:checked{background:#3d8bfd}"
+                        "#ow,#go,#sa,#cp{color:white;font-weight:bold;font-size:13px}"
+                        "#ow{background:#d9822b} #go{background:#2ea043} #sa{background:#3d8bfd} #cp{background:#8957e5}"
+                        "#ow:disabled,#go:disabled,#sa:disabled,#cp:disabled{background:#2b2d30;color:#555}"
                         "QGraphicsView{background:#111}")
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
                         ("Left", lambda: s.step_frame(-1)
@@ -818,10 +829,13 @@ class Main(QMainWindow):
         s.qL.setText(f"Quality: {s.q.value()}" +
                      ("  (colors)" if s.fmt.currentText() == "GIF" else ""))
         s.info.setText(f"{tot:.1f}s → ~{int(tot * fps)} frames")
-        s.clipBtn.setEnabled(bool(s.path and s.tl.segs)
-                             and not s.busy and s.fmt.currentText() in CLIP_FMTS)
+        ready = bool(s.path and s.tl.segs) and not s.busy
+        for b in (s.overBtn, s.numBtn, s.saveAsBtn):
+            b.setEnabled(ready)
+        s.clipBtn.setEnabled(ready and s.fmt.currentText() in CLIP_FMTS)
 
-    def export(s):
+    def export(s, mode="numbered"):
+        """mode: 'overwrite' | 'numbered' | 'saveas'"""
         if not (s.path and s.tl.segs and FFMPEG):
             return
         fmt = s.fmt.currentText()
@@ -836,12 +850,31 @@ class Main(QMainWindow):
         ext = ext_map.get(fmt, ".mp4")
         base = os.path.splitext(s.path)[0]
         out = base + ext
-        if os.path.exists(out) and not s.over.isChecked():
-            n = 1
-            while os.path.exists(f"{base} (edited {n}){ext}"):
-                n += 1
-            out = f"{base} (edited {n}){ext}"
-        s.out, s.tmp = out, f"{base}.__tmp__{ext}"
+        if mode == "saveas":
+            out, _ = QFileDialog.getSaveFileName(
+                s, "Save as", out, f"{fmt} (*{ext})")
+            if not out:
+                return
+            if not out.lower().endswith(ext):
+                out += ext
+        elif mode == "numbered":
+            if os.path.exists(out):
+                n = 1
+                while os.path.exists(f"{base} (edited {n}){ext}"):
+                    n += 1
+                out = f"{base} (edited {n}){ext}"
+        elif mode == "overwrite":
+            if os.path.exists(out):
+                msg = f"“{os.path.basename(out)}” already exists and will be replaced."
+                if os.path.abspath(out) == os.path.abspath(s.path):
+                    msg += "\n\nThis is your ORIGINAL source file."
+                msg += "\n\nContinue?"
+                if QMessageBox.question(s, "Overwrite existing file?", msg,
+                                        QMessageBox.Yes | QMessageBox.No,
+                                        QMessageBox.No) != QMessageBox.Yes:
+                    return
+        s.out = out
+        s.tmp = f"{os.path.splitext(out)[0]}.__tmp__{ext}"
         s.clip_mode = False
         s.start_export(s.ffmpeg_args(s.tmp))
 
@@ -892,8 +925,7 @@ class Main(QMainWindow):
         s.exp_total = s.tl.total()
         s.busy = True
         s.bar.setValue(0)
-        s.exp.setEnabled(False)
-        s.clipBtn.setEnabled(False)
+        s.refresh()
         s.status.setText(
             "Copying to clipboard…" if s.clip_mode else "Exporting…")
         s.proc = QProcess(s)
@@ -913,8 +945,7 @@ class Main(QMainWindow):
     def on_done(s, code, _):
         err = bytes(s.proc.readAllStandardError()).decode(errors="ignore")
         s.busy = False
-        s.exp.setEnabled(True)
-        s.clipBtn.setEnabled(s.fmt.currentText() in CLIP_FMTS)
+        s.refresh()
         if code == 0 and os.path.exists(s.tmp):
             if s.clip_mode:
                 img = QImage(s.tmp)
