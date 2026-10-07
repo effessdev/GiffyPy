@@ -19,6 +19,7 @@ FPS_STEPS = [0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 30, 50, 60]
 PREVIEW_FPS, PREVIEW_H = 12, 480
 MIN = 0.05  # minimum clip length (s)
 FILTER = ("Video (*.mp4 *.mkv *.mov *.webm *.avi *.flv *.ts *.m2ts *.m4v *.wmv *.mpg *.mpeg *.ogv *.3gp *.gif);;All files (*)")
+CLIP_FMTS = {"GIF", "WebP"}  # image-based formats that can go on the clipboard
 
 
 def probe(path):
@@ -433,6 +434,7 @@ class Main(QMainWindow):
         s.setWindowTitle("GiffyPy")
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
+        s.clip_mode, s.busy = False, False
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
         s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
         s.player = QMediaPlayer()
@@ -529,6 +531,11 @@ class Main(QMainWindow):
         s.exp.setObjectName("go")
         s.exp.setMinimumHeight(46)
         s.exp.clicked.connect(s.export)
+        s.clipBtn = QPushButton("📋 Copy to Clipboard")
+        s.clipBtn.setMinimumHeight(36)
+        s.clipBtn.setToolTip(
+            "Export and copy to clipboard (only GIF / WebP support this)")
+        s.clipBtn.clicked.connect(s.copy_to_clipboard)
         s.bar = QProgressBar()
         s.bar.setRange(0, 100)
         s.status = QLabel()
@@ -536,7 +543,7 @@ class Main(QMainWindow):
         s.folder = btn("Open folder", lambda: s.path and QDesktopServices.openUrl(
             QUrl.fromLocalFile(os.path.dirname(s.path))))
         right = QVBoxLayout()
-        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info, s.over, s.exp, s.status, s.folder):
+        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info, s.over, s.exp, s.clipBtn, s.status, s.folder):
             right.addWidget(w)
         right.addStretch()
         panel = QWidget()
@@ -809,6 +816,7 @@ class Main(QMainWindow):
         s.qL.setText(f"Quality: {s.q.value()}" +
                      ("  (colors)" if s.fmt.currentText() == "GIF" else ""))
         s.info.setText(f"{tot:.1f}s → ~{int(tot * fps)} frames")
+        s.clipBtn.setEnabled(not s.busy and s.fmt.currentText() in CLIP_FMTS)
 
     def export(s):
         if not (s.path and s.tl.segs and FFMPEG):
@@ -831,6 +839,22 @@ class Main(QMainWindow):
                 n += 1
             out = f"{base} (edited {n}){ext}"
         s.out, s.tmp = out, f"{base}.__tmp__{ext}"
+        s.clip_mode = False
+        s.start_export(s.ffmpeg_args(s.tmp))
+
+    def copy_to_clipboard(s):
+        """Export to a temp file behind the scenes, then put the result on the clipboard."""
+        if not (s.path and s.tl.segs and FFMPEG) or s.fmt.currentText() not in CLIP_FMTS:
+            return
+        ext = ".webp" if s.fmt.currentText() == "WebP" else ".gif"
+        s.tmp = os.path.join(tempfile.gettempdir(),
+                             f"giffypy_clip_{os.path.splitext(os.path.basename(s.path))[0]}{ext}")
+        s.out = s.tmp
+        s.clip_mode = True
+        s.start_export(s.ffmpeg_args(s.tmp))
+
+    def ffmpeg_args(s, dst):
+        fmt = s.fmt.currentText()
         x, y, w, h = s.crop_rect()
         W, H = s.out_size()
         fps = FPS_STEPS[s.fps.value()]
@@ -858,15 +882,21 @@ class Main(QMainWindow):
             fc += "[out]"
             crf = int(51 - q * 33 / 100)
             enc = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", str(crf)]
+        return ["-y", "-hide_banner", "-loglevel", "error", "-progress", "pipe:1", "-nostats", "-i", s.path,
+                "-filter_complex", fc, "-map", "[out]", "-an", *enc, dst]
+
+    def start_export(s, args):
         s.exp_total = s.tl.total()
+        s.busy = True
         s.bar.setValue(0)
         s.exp.setEnabled(False)
-        s.status.setText("Exporting…")
+        s.clipBtn.setEnabled(False)
+        s.status.setText(
+            "Copying to clipboard…" if s.clip_mode else "Exporting…")
         s.proc = QProcess(s)
         s.proc.readyReadStandardOutput.connect(s.on_prog)
         s.proc.finished.connect(s.on_done)
-        s.proc.start(FFMPEG, ["-y", "-hide_banner", "-loglevel", "error", "-progress", "pipe:1", "-nostats", "-i", s.path,
-                              "-filter_complex", fc, "-map", "[out]", "-an", *enc, s.tmp])
+        s.proc.start(FFMPEG, args)
 
     def on_prog(s):
         for ln in bytes(s.proc.readAllStandardOutput()).decode(errors="ignore").splitlines():
@@ -879,17 +909,31 @@ class Main(QMainWindow):
 
     def on_done(s, code, _):
         err = bytes(s.proc.readAllStandardError()).decode(errors="ignore")
+        s.busy = False
         s.exp.setEnabled(True)
+        s.clipBtn.setEnabled(s.fmt.currentText() in CLIP_FMTS)
         if code == 0 and os.path.exists(s.tmp):
-            if os.path.abspath(s.out) == os.path.abspath(s.path):
-                s.player.setSource(QUrl())  # release file (Windows)
-            try:
-                os.replace(s.tmp, s.out)
-                s.bar.setValue(100)
-                s.status.setText(
-                    f"✔ Saved {os.path.basename(s.out)} ({os.path.getsize(s.out) / 1e6:.2f} MB)")
-            except OSError as ex:
-                s.status.setText(f"Couldn't write output: {ex}")
+            if s.clip_mode:
+                img = QImage(s.tmp)
+                os.remove(s.tmp)
+                if img.isNull():
+                    s.status.setText(
+                        "Couldn't copy to clipboard: exported file unreadable.")
+                else:
+                    QApplication.clipboard().setImage(img)
+                    s.bar.setValue(100)
+                    s.status.setText(
+                        f"✔ Copied {s.fmt.currentText()} to clipboard")
+            else:
+                if os.path.abspath(s.out) == os.path.abspath(s.path):
+                    s.player.setSource(QUrl())  # release file (Windows)
+                try:
+                    os.replace(s.tmp, s.out)
+                    s.bar.setValue(100)
+                    s.status.setText(
+                        f"✔ Saved {os.path.basename(s.out)} ({os.path.getsize(s.out) / 1e6:.2f} MB)")
+                except OSError as ex:
+                    s.status.setText(f"Couldn't write output: {ex}")
         else:
             if os.path.exists(s.tmp):
                 os.remove(s.tmp)
