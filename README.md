@@ -25,6 +25,7 @@ A simple video editor made **specifically for editing screen recordings**. Expor
   - Frame-by-frame navigation using arrow keys.
 - **Seamless Preview:**
   - Automatic background proxy generation for codecs not natively supported by Qt.
+  - **Instant seeking:** Done by converting the source video into a low res image sequence of the same FPS. When you move the playhead, the low res image is used. When you let go of the mouse, It's replace with the full res frame.
 
 ## Interface Layout
 
