@@ -19,10 +19,10 @@ class Timeline(QWidget):
 
     def __init__(s):
         super().__init__()
-        s.segs, s.dur, s.cur, s.head, s.drag, s.fz = [], 0.0, 0, 0.0, None, None
+        s.segs, s.dur, s.cur, s.head, s.drag = [], 0.0, 0, 0.0, None
         s.before, s.pan = [], None
-        # auto = fit-to-width; z = px/sec; ox = scroll offset (px)
-        s.auto, s.z, s.ox = True, 100.0, 0.0
+        # z = px/sec (locked after fit_view on load); ox = scroll offset (px)
+        s.z, s.ox = 100.0, 0.0
         s.setMinimumHeight(110)
         s.setMouseTracking(True)
         lay = QVBoxLayout(s)
@@ -37,9 +37,7 @@ class Timeline(QWidget):
     def fit(s): return max(1e-3, (s.width() - 2 * s.PAD) / (s.total() or 1e-9))
 
     def pps(s):
-        if s.fz:
-            return s.fz
-        return s.fit() if s.auto else s.z
+        return s.z
 
     def offset(s, i): return sum(e - b for b, e in s.segs[:i])
 
@@ -65,8 +63,7 @@ class Timeline(QWidget):
     def max_ox(s): return max(0.0, s.total() * s.pps() + 2 * s.PAD - s.width())
 
     def sync(s):
-        s.ox = 0.0 if (s.auto and not s.fz) else max(
-            0.0, min(s.max_ox(), s.ox))
+        s.ox = max(0.0, min(s.max_ox(), s.ox))
         m = int(s.max_ox())
         s.sb.blockSignals(True)
         s.sb.setRange(0, m)
@@ -79,19 +76,8 @@ class Timeline(QWidget):
         s.ox = float(v)
         s.update()
 
-    def follow(s, chase=True):
-        """Keep the playhead visible (used while playing / stepping)."""
-        if chase and not s.auto and s.segs:
-            vw = s.width() - 2 * s.PAD
-            hx = s.head * s.pps()
-            if hx < s.ox:
-                s.ox = hx - vw * 0.1
-            elif hx > s.ox + vw:
-                s.ox = hx - vw * 0.9
-        s.sync()
-
     def zoom_by(s, f, ax=None):
-        if not s.segs or s.fz:
+        if not s.segs:
             return
         ax = s.width() / 2 if ax is None else ax
         old = s.pps()
@@ -100,13 +86,13 @@ class Timeline(QWidget):
         # time under the anchor stays put
         t = (ax - s.PAD + s.ox) / old
         s.z = new
-        s.auto = False
         s.ox = s.PAD + t * new - ax
         s.sync()
         s.update()
 
     def fit_view(s):
-        s.auto, s.ox = True, 0.0
+        """Snapshot the current fit as a fixed zoom; nothing re-fits automatically after this."""
+        s.z, s.ox = s.fit(), 0.0
         s.sync()
         s.update()
 
@@ -130,7 +116,7 @@ class Timeline(QWidget):
         s.cur = i
         b, e = s.segs[i]
         s.head = s.offset(i) + min(max(t - b, 0), e - b)
-        s.follow(s.drag is None)
+        s.sync()
         s.update()
 
     def goto(s, i, t): s.track(i, t); s.seek.emit(i, t)
@@ -221,7 +207,6 @@ class Timeline(QWidget):
         if ev.button() != Qt.LeftButton or not s.segs:
             return
         s.before = copy.deepcopy(s.segs)
-        s.fz = s.pps()
         i, mode = s.hit(x, y)
         if i is not None:
             s.cur = i
@@ -291,7 +276,7 @@ class Timeline(QWidget):
         elif mode == 'move':
             i, b = s.src()
             s.seek.emit(s.cur, b)
-        s.drag, s.fz = None, None
+        s.drag = None
         if s.segs and s.segs != s.before:
             s.committed.emit(s.before)
             s.changed.emit()
