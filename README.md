@@ -34,7 +34,7 @@ Customize your exports with these settings:
 - **Quality:** Adjust output quality settings.
 - **GIF palette and dithering:** Use automatic palette generation with dither controls for GIFs.
 
-#### Four Ways to Save
+### 📂 Four Ways to Save
 
 Each save option has its own button.
 
