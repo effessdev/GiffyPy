@@ -4,11 +4,9 @@ A simple and fast video editor made **specifically for editing screen recordings
 
 <img width="1287" alt="image" src="https://github.com/user-attachments/assets/1e386c9f-665a-4cfe-bec7-9bc16aed9114" />
 
----
-
 ## Goal of the editor
 
-Make editing screen recordings of your project for your README extremely fast and effortless, so you can focus on the project instead marketing.
+Make editing screen recordings of your project for your README extremely fast and effortless, so you can focus on the project instead of marketing.
 
 ## Features
 
@@ -61,8 +59,6 @@ Navigate and edit complex timelines with these controls:
 - **Instant scrubbing:** Generates a low-resolution image sequence of the video at import time, allowing the preview to update quickly as you scrub the timeline without loading screens. Displays low-resolution images while scrubbing for a responsive experience, then switches to the full-resolution frame as soon as you release the mouse.
 - **Automatic codec support:** Generates background proxies for video codecs that Qt cannot natively play.
 
----
-
 ## Interface Layout
 
 The interface is organized into three main panels:
@@ -90,8 +86,6 @@ Fine-tune your export settings before saving:
 
 Choose how to save using one of the four export buttons: **Overwrite, Numbered Copy, Save To…, or Copy to Clipboard**.
 
----
-
 ## Prerequisites
 
 **FFmpeg** should be installed and available in your `PATH`.
@@ -114,8 +108,6 @@ Choose how to save using one of the four export buttons: **Overwrite, Numbered C
 | `Ctrl + 0` | Fit timeline to view |
 | `Middle-Click Drag` | Pan timeline horizontally |
 | `Ctrl + Scroll` | Zoom timeline centered at mouse cursor |
-
----
 
 ## Packaging to Standalone Executable (Windows)
 
