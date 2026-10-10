@@ -189,7 +189,12 @@ class Timeline(QWidget):
     def hit(s, x, y):
         if y < s.RULER:
             return None, 'scrub'
-        for i, r in enumerate(s.rects()):
+        # check the selected clip first: adjacent clips share an edge, and without
+        # this priority the previous clip's right edge always wins the trim grab
+        rects = s.rects()
+        order = [s.cur] + [i for i in range(len(rects)) if i != s.cur]
+        for i in order:
+            r = rects[i]
             if abs(x - r.left()) <= s.EDGE:
                 return i, 'l'
             if abs(x - r.right()) <= s.EDGE:
