@@ -58,10 +58,8 @@ Navigate and edit complex timelines with these controls:
 
 ### ▶️ Seamless Preview & Undo
 
-### ▶️ Seamless Preview & Undo
-
-- **Automatic codec support:** Generates background proxies for video codecs that Qt cannot natively play.
 - **Instant scrubbing:** Generates a low-resolution image sequence of the video at import time, allowing the preview to update quickly as you scrub the timeline without loading screens. Displays low-resolution images while scrubbing for a responsive experience, then switches to the full-resolution frame as soon as you release the mouse.
+- **Automatic codec support:** Generates background proxies for video codecs that Qt cannot natively play.
 
 ---
 
