@@ -55,6 +55,8 @@ Coordinates come in two flavors and the `Timeline` translates between them const
 
 Continuous playback doesn't use proxies: a 15 ms `QTimer` (`tick`) mirrors `player.position()` onto the timeline playhead and advances across clip boundaries, skipping the seek entirely when adjacent clips are contiguous in the source.
 
+Arrow-key stepping (`Left` / `Right`) is caught by an app-level `eventFilter` on `Main` (installed in `__init__`). While a key is held (including auto-repeat), each step advances the playhead by one export-frame and repaints only the low-res proxy via `show_preview`; the real `player.setPosition()` seek is issued once, on non-auto-repeat key release, through `commit_step`.
+
 ## Timeline Widget (`timeline.py`)
 
 A fully custom-painted `QWidget` (no QGraphicsScene) with a horizontal `QScrollBar` for pan. Three interaction zones resolved by `hit()`:

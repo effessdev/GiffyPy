@@ -18,7 +18,7 @@ import os
 import shutil
 import tempfile
 import copy
-from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess
+from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
 from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
                                QGraphicsScene, QGraphicsTextItem, QHBoxLayout, QLabel, QMainWindow,
@@ -177,12 +177,12 @@ class Main(QMainWindow):
                         "#ow:disabled,#go:disabled,#sa:disabled,#cp:disabled{background:#2b2d30;color:#555}"
                         "QGraphicsView{background:#111}")
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
-                        ("Left", lambda: s.step_frame(-1)
-                         ), ("Right", lambda: s.step_frame(1)),
                         ("Ctrl+=", lambda: s.tl.zoom_by(1.5)
                          ), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
                         ("Ctrl+-", lambda: s.tl.zoom_by(1 / 1.5)), ("Ctrl+0", lambda: s.tl.fit_view())):
             QShortcut(QKeySequence(key), s, activated=fn)
+        # Left/Right arrow keys step frames via eventFilter (proxy while held, real frame on release)
+        QApplication.instance().installEventFilter(s)
         s.refresh()
         if not FFMPEG or not FFPROBE:
             s.status.setText(
@@ -327,6 +327,7 @@ class Main(QMainWindow):
     ) == QMediaPlayer.PlayingState
 
     def step_frame(s, direction):
+        """Move the playhead one frame at the export FPS; only repaints the low-res proxy."""
         if not s.tl.segs:
             return
         if s.playing():
@@ -338,9 +339,29 @@ class Main(QMainWindow):
         for i, (b, e) in enumerate(s.tl.segs):
             seg_len = e - b
             if new_head <= acc + seg_len or i == len(s.tl.segs) - 1:
-                s.tl.goto(i, min(e, b + new_head - acc))
+                t = min(e, b + new_head - acc)
+                s.tl.track(i, t)
+                s.show_preview(t)
                 return
             acc += seg_len
+
+    def commit_step(s):
+        """Fetch the full-resolution frame at the current playhead (arrow-key release)."""
+        if s.tl.segs:
+            s.on_seek(*s.tl.src())
+
+    def eventFilter(s, obj, ev):
+        """Left/Right arrows: preview-only while held; seek once on release."""
+        t = ev.type()
+        if t in (QEvent.KeyPress, QEvent.KeyRelease) and ev.key() in (Qt.Key_Left, Qt.Key_Right):
+            w = obj if isinstance(obj, QWidget) else None
+            if w is not None and (w is s or s.isAncestorOf(w)):
+                if t == QEvent.KeyPress:
+                    s.step_frame(-1 if ev.key() == Qt.Key_Left else 1)
+                elif not ev.isAutoRepeat():
+                    s.commit_step()
+                return True
+        return super().eventFilter(obj, ev)
 
     def toggle_play(s):
         if not s.tl.segs:
