@@ -74,7 +74,7 @@ class Main(QMainWindow):
             "<div style='text-align: center;'>"
             "<span style='font-size: 48px;'>🎬</span><br><br>"
             "<span style='font-size: 20px; font-weight: bold; color: #ccc;'>Drag & Drop Video Here</span><br><br>"
-            "<span style='font-size: 14px; color: #888;'>or click <b>📂 Open</b> to select a file</span>"
+            "<span style='font-size: 14px; color: #888;'>or click here to select a file</span>"
             "</div>"
         )
         s.scene.addItem(s.placeholder)
@@ -125,7 +125,7 @@ class Main(QMainWindow):
         s.speedVal = QLabel("1.0x")
         s.speedVal.setMinimumWidth(40)
         bar = QHBoxLayout()
-        for b in (btn("📂 Open", s.open, "Ctrl+O"), s.playBtn, btn("✂ Split", s.split, "S"),
+        for b in (s.playBtn, btn("✂ Split", s.split, "S"),
                   btn("🗑 Delete clip", s.delete, "Del"), btn(
                       "↶ Undo", s.do_undo, "Ctrl+Z"), s.cropBtn,
                   btn("Reset crop", lambda: s.crop and s.crop.reset()),
@@ -228,6 +228,7 @@ class Main(QMainWindow):
                         ("Ctrl+-", lambda: s.tl.zoom_by(1 / 1.5)), ("Ctrl+0", lambda: s.tl.fit_view())):
             QShortcut(QKeySequence(key), s, activated=fn)
         # Left/Right arrow keys step frames via eventFilter (proxy while held, real frame on release)
+        s.view.viewport().installEventFilter(s)
         QApplication.instance().installEventFilter(s)
         s.refresh()
         if not FFMPEG or not FFPROBE:
@@ -434,6 +435,9 @@ class Main(QMainWindow):
     def eventFilter(s, obj, ev):
         """Left/Right arrows: preview-only while held; seek once on release."""
         t = ev.type()
+        if t == QEvent.MouseButtonPress and obj is s.view.viewport() and not s.path and not s.busy:
+            s.open()
+            return True
         if t in (QEvent.KeyPress, QEvent.KeyRelease) and ev.key() in (Qt.Key_Left, Qt.Key_Right):
             w = obj if isinstance(obj, QWidget) else None
             if w is not None and (w is s or s.isAncestorOf(w)):
