@@ -18,7 +18,8 @@ import os
 import shutil
 import tempfile
 import copy
-from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
+import threading
+from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent, QObject, Signal
 from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
                                QGraphicsScene, QGraphicsTextItem, QHBoxLayout, QLabel, QMainWindow,
@@ -33,6 +34,11 @@ from .crop import CropItem, View
 from .timeline import Timeline
 
 
+class _LoadSignals(QObject):
+    finished = Signal(int, str, int, int, float, float)
+    failed = Signal(int, str, str)
+
+
 class Main(QMainWindow):
     def __init__(s):
         super().__init__()
@@ -40,6 +46,10 @@ class Main(QMainWindow):
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
         s.clip_mode, s.busy = False, False
+        s.load_token = 0
+        s.load_signals = _LoadSignals(s)
+        s.load_signals.finished.connect(s._load_complete)
+        s.load_signals.failed.connect(s._load_failed)
         s.speed_before = None
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
         s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
@@ -234,14 +244,36 @@ class Main(QMainWindow):
     def load(s, path):
         if not FFPROBE:
             return
-        try:
-            W, H, dur, s.src_fps = probe(path)
-        except Exception as ex:
-            s.status.setText(f"Can't read file: {ex}")
+        s.load_token += 1
+        token = s.load_token
+        s.status.setText("Loading file…")
+        s.bar.setValue(0)
+        s.busy = True
+
+        def worker():
+            try:
+                W, H, dur, fps = probe(path)
+            except Exception as ex:
+                s.load_signals.failed.emit(token, path, str(ex))
+                return
+            s.load_signals.finished.emit(token, path, W, H, dur, fps)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _load_failed(s, token, path, ex):
+        if token != s.load_token:
+            return
+        s.status.setText(f"Can't read file: {ex}")
+        s.busy = False
+        s.path = None
+
+    def _load_complete(s, token, path, W, H, dur, fps):
+        if token != s.load_token:
             return
         s.placeholder.hide()
         s.vitem.show()
         s.path, s.W, s.H, s.undo, s.proxied = path, W, H, [], False
+        s.src_fps = fps
         s.tl.segs, s.tl.dur = [], dur
         s.scene.setSceneRect(0, 0, W, H)
         s.vitem.setSize(QSizeF(W, H))
@@ -256,6 +288,7 @@ class Main(QMainWindow):
         s.setWindowTitle(f"GiffyPy — {os.path.basename(path)}")
         s.status.setText("")
         s.bar.setValue(0)
+        s.busy = False
         s.start_preview(path)
         if dur > 0:
             s.init_segs(dur)

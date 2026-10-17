@@ -4,13 +4,13 @@ GiffyPy is a single-window desktop video editor built around two pillars: a **Qt
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Python 3 (≥ 3.10) |
-| GUI / event loop | PySide6 (`QtWidgets`, `QtMultimedia`, `QtMultimediaWidgets`) |
-| Media decoding / playback | `QMediaPlayer` + `QVideoSink` (native Qt playback when the codec allows) |
-| Media processing | External `ffmpeg` / `ffprobe` binaries, launched via `QProcess` or `subprocess` |
-| Packaging | PyInstaller (`GiffyPy.spec`, `package.bat`), Windows-focused |
+| Layer                     | Technology                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| Language                  | Python 3 (≥ 3.10)                                                               |
+| GUI / event loop          | PySide6 (`QtWidgets`, `QtMultimedia`, `QtMultimediaWidgets`)                    |
+| Media decoding / playback | `QMediaPlayer` + `QVideoSink` (native Qt playback when the codec allows)        |
+| Media processing          | External `ffmpeg` / `ffprobe` binaries, launched via `QProcess` or `subprocess` |
+| Packaging                 | PyInstaller (`GiffyPy.spec`, `package.bat`), Windows-focused                    |
 
 ## Module Layout
 
@@ -37,21 +37,21 @@ main.py → window.py → {media, export, crop, timeline} → constants.py
 
 The edit state is deliberately tiny and non-destructive:
 
-- **`s.tl.segs`** — a list of `[start, end, speed]` triples in *edit order*: a source-time range plus a playback rate. This is the entire edit; the original file is never modified. Splitting, trimming, deleting, and reordering are pure list operations; `speed` travels with the clip.
+- **`s.tl.segs`** — a list of `[start, end, speed]` triples in _edit order_: a source-time range plus a playback rate. This is the entire edit; the original file is never modified. Splitting, trimming, deleting, and reordering are pure list operations; `speed` travels with the clip.
 - **`s.crop.r`** — a `QRectF` in source-pixel coordinates (only meaningful when the crop toggle is on).
 - **Export settings** — format, FPS step index, resolution scale %, quality 1–100, read live from widgets at export time.
-- **Undo stack** — `s.undo` is a list of `copy.deepcopy(segs)` snapshots. A snapshot is pushed when a `Timeline` gesture *commits* (mouse release with an actual change) or on split/delete/undo. Undo simply pops and restores.
+- **Undo stack** — `s.undo` is a list of `copy.deepcopy(segs)` snapshots. A snapshot is pushed when a `Timeline` gesture _commits_ (mouse release with an actual change) or on split/delete/undo. Undo simply pops and restores.
 
 Coordinates come in two flavors and the `Timeline` translates between them constantly: **source time** (a position in the original file) and **edit time** (position in the concatenated output). A segment's edit duration is `(end - start) / speed`, so clip widths, offsets, and total length are all in edit time; the mapping multiplies or divides by `speed` at the seam. `offset()`, `src()`, `scrub()`, and `head` handle the mapping.
 
 ## Import & Playback Pipeline
 
-1. **Probe** (`media.py`): `load(path)` runs ffprobe synchronously for dimensions, duration, and `avg_frame_rate` (fraction parsing, with fallbacks).
+1. **Probe** (`media.py`): `load(path)` dispatches ffprobe to a background thread so the GUI stays responsive while it gathers dimensions, duration, and `avg_frame_rate` (fraction parsing, with fallbacks). The worker posts the result back to the Qt thread via `QTimer.singleShot` before the scene is finalized.
 2. **Scene setup** (`window.py`): a `QGraphicsScene` layers three items — `QGraphicsVideoItem` (z=0, real decoder output), a `QGraphicsPixmapItem` proxy overlay (z=0.5), and the `CropItem` (z=1) — inside a `View` that re-fits on resize.
-3. **Proxy sequence** (`window.start_preview`): immediately on load, a background `QProcess` runs ffmpeg to emit a low-resolution JPEG sequence (`f%06d.jpg`, height ≤ `PREVIEW_H`) at the *source frame rate* (1:1 frame mapping) into a fresh temp dir. Scrubbing is then an O(1) file read instead of a video seek — this is what makes scrubbing feel instant.
+3. **Proxy sequence** (`window.start_preview`): immediately on load, a background `QProcess` runs ffmpeg to emit a low-resolution JPEG sequence (`f%06d.jpg`, height ≤ `PREVIEW_H`) at the _source frame rate_ (1:1 frame mapping) into a fresh temp dir. Scrubbing is then an O(1) file read instead of a video seek — this is what makes scrubbing feel instant.
 4. **Scrub preview** (`window.show_preview`): time → frame index → cached `QPixmap` (LRU-ish dict, cleared past 120 entries) painted over the video item while paused.
 5. **Commit / real frame**: on gesture release, a true `QMediaPlayer.setPosition()` seek runs; `QVideoSink.videoFrameChanged` fires `on_real_frame`, which hides the proxy overlay so the full-resolution decoded frame shows. If the sink API is unavailable, a 300 ms timer hides the proxy instead.
-6. **Codec fallback** (`window.on_error`): if Qt's backend cannot decode the file, a *second* proxy strategy kicks in — ffmpeg transcodes a light 720p H.264 MP4 into the temp dir and the player re-points at it, giving native playback for codecs Qt can't open.
+6. **Codec fallback** (`window.on_error`): if Qt's backend cannot decode the file, a _second_ proxy strategy kicks in — ffmpeg transcodes a light 720p H.264 MP4 into the temp dir and the player re-points at it, giving native playback for codecs Qt can't open.
 
 Continuous playback doesn't use proxies: a 15 ms `QTimer` (`tick`) mirrors `player.position()` onto the timeline playhead and advances across clip boundaries, skipping the seek entirely when adjacent clips are contiguous in the source. Preview deliberately ignores per-clip speed — the player always runs at source rate — so a 2× clip's edit-time playhead advances at half wall-clock speed and preview duration equals source duration. Whenever any speed ≠ 1.0, `Main.refresh` shows an amber note explaining that the difference applies to the export only.
 
@@ -65,23 +65,23 @@ A fully custom-painted `QWidget` (no QGraphicsScene) with a horizontal `QScrollB
 - **Clip body** → drag to reorder (live re-insertion into `segs` while dragging).
 - **Clip edges** (yellow handles) → trim start/end with live proxy preview; left-edge trims "shift in place" during drag and ripple on release.
 
-Edge hit-testing checks the *selected* clip first so adjacent clips sharing a border don't steal the grab. Zoom is pixels-per-second (`z`) in edit time, anchored at the mouse for `Ctrl+Wheel`; `fit_view()` snapshots a fixed fit zoom and nothing auto-refits afterward. Clip widths are edit-duration × zoom, so changing a clip's speed changes its width and the total length; the top ruler reads edit time.
+Edge hit-testing checks the _selected_ clip first so adjacent clips sharing a border don't steal the grab. Zoom is pixels-per-second (`z`) in edit time, anchored at the mouse for `Ctrl+Wheel`; `fit_view()` snapshots a fixed fit zoom and nothing auto-refits afterward. Clip widths are edit-duration × zoom, so changing a clip's speed changes its width and the total length; the top ruler reads edit time.
 
 State-change protocol to `Main` via four signals:
 
-| Signal | Meaning | Main's reaction |
-|---|---|---|
-| `seek(i, t)` | committed position change | move player, show real frame |
-| `preview(t)` | live scrub, proxy frame only | paint proxy, no seek |
-| `committed(before)` | gesture changed `segs` | push snapshot for undo |
-| `changed()` | anything visible changed | refresh export panel labels/buttons |
-| `selected(i)` | current clip changed | sync the per-clip speed slider |
+| Signal              | Meaning                      | Main's reaction                     |
+| ------------------- | ---------------------------- | ----------------------------------- |
+| `seek(i, t)`        | committed position change    | move player, show real frame        |
+| `preview(t)`        | live scrub, proxy frame only | paint proxy, no seek                |
+| `committed(before)` | gesture changed `segs`       | push snapshot for undo              |
+| `changed()`         | anything visible changed     | refresh export panel labels/buttons |
+| `selected(i)`       | current clip changed         | sync the per-clip speed slider      |
 
 Speed control: a slider in the toolbar, right of "Fit" (0.1×–4.0×, one undo snapshot per drag via `sliderPressed`/`sliderReleased`) edits the selected clip's `speed`. The slider stays in sync with the current clip through `Timeline.selected` and `Main.refresh`; the amber "preview is at source speed" note sits inline next to the slider (word-wrapped to a bounded width), toggled by the same `refresh`.
 
 ## Cropping (`crop.py`)
 
-`CropItem` is an image-editor-style overlay: the region *outside* the crop rect is dimmed via an even-odd `QPainterPath`, rule-of-thirds guides are drawn inside, and eight handles plus the interior support resize/move. Handles are sized by dividing by the view's scale factor so they stay a constant 7 px on screen regardless of zoom. Every geometry change invokes the `on_change` callback (wired to `Main.refresh`), which recomputes the output-size preview. `Main.crop_rect()` snaps crop x/y/w/h to even integers (required by encoders working in YUV 4:2:0).
+`CropItem` is an image-editor-style overlay: the region _outside_ the crop rect is dimmed via an even-odd `QPainterPath`, rule-of-thirds guides are drawn inside, and eight handles plus the interior support resize/move. Handles are sized by dividing by the view's scale factor so they stay a constant 7 px on screen regardless of zoom. Every geometry change invokes the `on_change` callback (wired to `Main.refresh`), which recomputes the output-size preview. `Main.crop_rect()` snaps crop x/y/w/h to even integers (required by encoders working in YUV 4:2:0).
 
 ## Export Pipeline (`export.py` + `window.py`)
 
@@ -99,9 +99,9 @@ Speed control: a slider in the toolbar, right of "Fit" (0.1×–4.0×, one undo 
 
 ## Process & Threading Model
 
-Everything GUI-related runs on the single Qt event-loop thread. All media work is out-of-process:
+Everything GUI-related runs on the single Qt event-loop thread. All media work is out-of-process, and the expensive metadata call is moved off the GUI thread:
 
-- **`subprocess.run`** — one synchronous ffprobe call at load time (fast enough to block on).
+- **Background thread** — ffprobe runs in a worker thread during file load so the window stays responsive while metadata is collected.
 - **`QProcess`** — proxy JPEG generation (killable, replaced per-load), codec-fallback transcoding, and exports (progress parsed from stdout).
 - **Qt multimedia internals** — `QMediaPlayer` decoding happens in native Qt threads; frames arrive via the `videoFrameChanged` signal.
 
