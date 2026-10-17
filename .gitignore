@@ -31,6 +31,8 @@ MANIFEST
 #   before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+#   ...but this project's spec is hand-maintained source (ffmpeg bundling lives in it)
+!GiffyPy.spec
 
 # Installer logs
 pip-log.txt

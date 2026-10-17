@@ -209,7 +209,7 @@ class Main(QMainWindow):
         s.refresh()
         if not FFMPEG or not FFPROBE:
             s.status.setText(
-                "⚠ ffmpeg/ffprobe not found on PATH — install ffmpeg.")
+                "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
 
     # ---- loading
     def open(s):

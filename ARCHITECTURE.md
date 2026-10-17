@@ -17,7 +17,7 @@ GiffyPy is a single-window desktop video editor built around two pillars: a **Qt
 ```
 main.py                 entry point: QApplication, icon, window creation, argv file loading
 giffypy/
-  constants.py          ffmpeg/ffprobe PATH discovery, tunables (PREVIEW_FPS, PREVIEW_H, MIN, ...)
+  constants.py          bundled-first ffmpeg/ffprobe discovery, tunables (PREVIEW_FPS, PREVIEW_H, MIN, ...)
   media.py              ffprobe wrapper: probe() -> (width, height, duration, fps)
   crop.py               CropItem (interactive crop rectangle QGraphicsItem) + View (auto-fit QGraphicsView)
   timeline.py           Timeline widget: clip model, scrub/trim/reorder gestures, zoom/pan, painting
@@ -109,7 +109,7 @@ Temp artifacts live in the system temp dir: `giffypy_prev_*` (JPEG proxy dirs, o
 
 ## Known Constraints & Conventions
 
-- ffmpeg/ffprobe must be on `PATH`; discovered once at import in `constants.py`, with a startup warning in the status label if missing.
+- ffmpeg/ffprobe are resolved once at import in `constants.py`: the bundled copy in the frozen dist's `sys._MEIPASS` takes precedence, otherwise a `PATH` lookup (`shutil.which`); a startup warning in the status label shows if neither is found.
 - The codebase uses single-letter parameter/self names (`s`) as a deliberate compactness convention.
 - `QVideoSink`'s Python signal is `videoFrameChanged` (`frameObserved` is the C++ alias); connecting the wrong name fails silently, so it's accessed via `getattr` with a `try` guard for older PySide6.
 - Minimum clip length is `MIN = 0.05 s`; crop handles enforce a 16 px minimum rect.
@@ -117,4 +117,4 @@ Temp artifacts live in the system temp dir: `giffypy_prev_*` (JPEG proxy dirs, o
 
 ## Packaging
 
-`package.bat` runs PyInstaller in `--onedir --windowed` mode with `icon.ico` bundled as data; `main.py.resource_path` resolves assets from `sys._MEIPASS` when frozen. The frozen app still requires ffmpeg on the user's `PATH` (it is not bundled).
+`package.bat` runs PyInstaller from `GiffyPy.spec` (`--onedir --windowed`, `icon.ico` as data). The spec also copies `ffmpeg.exe`/`ffprobe.exe` from the build machine's `PATH` into the dist folder (as datas, so UPX never touches them), so end users don't need ffmpeg installed; the spec prints a warning at build time if they're missing. `main.py.resource_path` resolves assets from `sys._MEIPASS` when frozen, and `constants.find_binary` prefers that bundled location over the system `PATH`.
