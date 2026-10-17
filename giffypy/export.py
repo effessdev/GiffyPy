@@ -31,8 +31,11 @@ def build_ffmpeg_args(src, dst, fmt, segs, crop, src_size, out_size, fps, q):
     """
     x, y, w, h = crop
     W, H = out_size
-    parts = [
-        f"[0:v]trim=start={b:.4f}:end={e:.4f},setpts=PTS-STARTPTS[v{i}]" for i, (b, e) in enumerate(segs)]
+    parts = []
+    for i, (b, e, sp) in enumerate(segs):
+        st = "PTS-STARTPTS" if abs(sp -
+                                   1.0) < 1e-9 else f"(PTS-STARTPTS)/{sp:.9g}"
+        parts.append(f"[0:v]trim=start={b:.4f}:end={e:.4f},setpts={st}[v{i}]")
     vf = ([f"crop={w}:{h}:{x}:{y}"] if (w, h) != tuple(src_size)
           else []) + [f"fps={fps}", f"scale={W}:{H}:flags=lanczos"]
     fc = ";".join(parts) + ";" + "".join(f"[v{i}]" for i in range(

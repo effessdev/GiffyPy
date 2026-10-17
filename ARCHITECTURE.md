@@ -37,12 +37,12 @@ main.py → window.py → {media, export, crop, timeline} → constants.py
 
 The edit state is deliberately tiny and non-destructive:
 
-- **`s.tl.segs`** — a list of `[start, end]` source-time pairs in *edit order*. This is the entire edit; the original file is never modified. Splitting, trimming, deleting, and reordering are pure list operations.
+- **`s.tl.segs`** — a list of `[start, end, speed]` triples in *edit order*: a source-time range plus a playback rate. This is the entire edit; the original file is never modified. Splitting, trimming, deleting, and reordering are pure list operations; `speed` travels with the clip.
 - **`s.crop.r`** — a `QRectF` in source-pixel coordinates (only meaningful when the crop toggle is on).
 - **Export settings** — format, FPS step index, resolution scale %, quality 1–100, read live from widgets at export time.
 - **Undo stack** — `s.undo` is a list of `copy.deepcopy(segs)` snapshots. A snapshot is pushed when a `Timeline` gesture *commits* (mouse release with an actual change) or on split/delete/undo. Undo simply pops and restores.
 
-Coordinates come in two flavors and the `Timeline` translates between them constantly: **source time** (a position in the original file) and **edit time** (position in the concatenated output). `offset()`, `src()`, `scrub()`, and `head` handle the mapping.
+Coordinates come in two flavors and the `Timeline` translates between them constantly: **source time** (a position in the original file) and **edit time** (position in the concatenated output). A segment's edit duration is `(end - start) / speed`, so clip widths, offsets, and total length are all in edit time; the mapping multiplies or divides by `speed` at the seam. `offset()`, `src()`, `scrub()`, and `head` handle the mapping.
 
 ## Import & Playback Pipeline
 
@@ -53,7 +53,7 @@ Coordinates come in two flavors and the `Timeline` translates between them const
 5. **Commit / real frame**: on gesture release, a true `QMediaPlayer.setPosition()` seek runs; `QVideoSink.videoFrameChanged` fires `on_real_frame`, which hides the proxy overlay so the full-resolution decoded frame shows. If the sink API is unavailable, a 300 ms timer hides the proxy instead.
 6. **Codec fallback** (`window.on_error`): if Qt's backend cannot decode the file, a *second* proxy strategy kicks in — ffmpeg transcodes a light 720p H.264 MP4 into the temp dir and the player re-points at it, giving native playback for codecs Qt can't open.
 
-Continuous playback doesn't use proxies: a 15 ms `QTimer` (`tick`) mirrors `player.position()` onto the timeline playhead and advances across clip boundaries, skipping the seek entirely when adjacent clips are contiguous in the source.
+Continuous playback doesn't use proxies: a 15 ms `QTimer` (`tick`) mirrors `player.position()` onto the timeline playhead and advances across clip boundaries, skipping the seek entirely when adjacent clips are contiguous in the source. Preview deliberately ignores per-clip speed — the player always runs at source rate — so a 2× clip's edit-time playhead advances at half wall-clock speed and preview duration equals source duration. Whenever any speed ≠ 1.0, `Main.refresh` shows an amber note explaining that the difference applies to the export only.
 
 Arrow-key stepping (`Left` / `Right`) is caught by an app-level `eventFilter` on `Main` (installed in `__init__`). While a key is held (including auto-repeat), each step advances the playhead by one export-frame and repaints only the low-res proxy via `show_preview`; the real `player.setPosition()` seek is issued once, on non-auto-repeat key release, through `commit_step`.
 
@@ -65,7 +65,7 @@ A fully custom-painted `QWidget` (no QGraphicsScene) with a horizontal `QScrollB
 - **Clip body** → drag to reorder (live re-insertion into `segs` while dragging).
 - **Clip edges** (yellow handles) → trim start/end with live proxy preview; left-edge trims "shift in place" during drag and ripple on release.
 
-Edge hit-testing checks the *selected* clip first so adjacent clips sharing a border don't steal the grab. Zoom is pixels-per-second (`z`), anchored at the mouse for `Ctrl+Wheel`; `fit_view()` snapshots a fixed fit zoom and nothing auto-refits afterward.
+Edge hit-testing checks the *selected* clip first so adjacent clips sharing a border don't steal the grab. Zoom is pixels-per-second (`z`) in edit time, anchored at the mouse for `Ctrl+Wheel`; `fit_view()` snapshots a fixed fit zoom and nothing auto-refits afterward. Clip widths are edit-duration × zoom, so changing a clip's speed changes its width and the total length; the top ruler reads edit time.
 
 State-change protocol to `Main` via four signals:
 
@@ -75,6 +75,9 @@ State-change protocol to `Main` via four signals:
 | `preview(t)` | live scrub, proxy frame only | paint proxy, no seek |
 | `committed(before)` | gesture changed `segs` | push snapshot for undo |
 | `changed()` | anything visible changed | refresh export panel labels/buttons |
+| `selected(i)` | current clip changed | sync the per-clip speed slider |
+
+Speed control: a slider under the timeline (0.1×–4.0×, one undo snapshot per drag via `sliderPressed`/`sliderReleased`) edits the selected clip's `speed`. The slider stays in sync with the current clip through `Timeline.selected` and `Main.refresh`.
 
 ## Cropping (`crop.py`)
 
@@ -84,7 +87,7 @@ State-change protocol to `Main` via four signals:
 
 `build_ffmpeg_args()` is a pure function that assembles a single `ffmpeg` invocation:
 
-1. **Per-segment** `[0:v]trim=...,setpts=PTS-STARTPTS[vN]` chains, then `concat=n=N:v=1:a=0` — the timeline is expressed entirely as a filtergraph; no intermediate files.
+1. **Per-segment** `[0:v]trim=...,setpts=(PTS-STARTPTS)/SPEED[vN]` chains, then `concat=n=N:v=1:a=0` — the timeline is expressed entirely as a filtergraph; no intermediate files. The division is skipped at 1.0× so the untouched path stays byte-identical.
 2. **Shared post-chain**: `crop` (only if the rect differs from source size) → `fps` → `scale` with lanczos.
 3. **Format-specific encoding**:
    - **GIF**: quality maps to palette color count (16–256); `split` + `palettegen=stats_mode=diff` + `paletteuse` with Bayer dithering in one filtergraph.

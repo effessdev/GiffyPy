@@ -30,6 +30,7 @@ class Timeline(QWidget):
     preview = Signal(float)
     committed = Signal(object)     # previous state (for undo)
     changed = Signal()
+    selected = Signal(int)         # current clip changed
     PAD, EDGE, RULER, SB = 10, 7, 20, 14
     MAXZ = 4000.0  # max zoom (pixels per second)
 
@@ -49,27 +50,28 @@ class Timeline(QWidget):
         s.sb.valueChanged.connect(s.on_scrollbar)
         lay.addWidget(s.sb)
 
-    def total(s): return sum(e - b for b, e in s.segs)
+    def total(s): return sum((e - b) / sp for b, e, sp in s.segs)
     def fit(s): return max(1e-3, (s.width() - 2 * s.PAD) / (s.total() or 1e-9))
 
     def pps(s):
         return s.z
 
-    def offset(s, i): return sum(e - b for b, e in s.segs[:i])
+    def offset(s, i): return sum((e - b) / sp for b, e, sp in s.segs[:i])
 
     def lshift(s):
         """While dragging a clip's left edge, the clip keeps its right edge in place
         and its left edge follows the mouse; it only ripples left on release."""
         if s.drag and s.drag[0] == 'l' and s.drag[1] is not None and s.drag[3]:
             i = s.drag[1]
-            return i, (s.segs[i][0] - s.drag[3][0]) * s.pps()
+            sp = max(0.01, s.segs[i][2])
+            return i, (s.segs[i][0] - s.drag[3][0]) * s.pps() / sp
         return None, 0.0
 
     def rects(s):
         x, out = s.PAD - s.ox, []
         si, sh = s.lshift()
-        for i, (b, e) in enumerate(s.segs):
-            w = (e - b) * s.pps()
+        for i, (b, e, sp) in enumerate(s.segs):
+            w = (e - b) / sp * s.pps()
             xs = x + (sh if i == si else 0.0)
             out.append(QRectF(xs, s.RULER, w, s.height() - s.RULER - 8 - s.SB))
             x = xs + w
@@ -129,34 +131,42 @@ class Timeline(QWidget):
         ev.accept()
 
     def track(s, i, t):
+        old = s.cur
         s.cur = i
-        b, e = s.segs[i]
-        s.head = s.offset(i) + min(max(t - b, 0), e - b)
+        b, e, sp = s.segs[i]
+        sp = max(0.01, sp)
+        s.head = s.offset(i) + min(max(t - b, 0), e - b) / sp
         s.sync()
         s.update()
+        if i != old:
+            s.selected.emit(i)
 
     def goto(s, i, t): s.track(i, t); s.seek.emit(i, t)
 
     def src(s):
-        b, e = s.segs[s.cur]
-        return s.cur, b + s.head - s.offset(s.cur)
+        b, e, sp = s.segs[s.cur]
+        sp = max(0.01, sp)
+        return s.cur, b + (s.head - s.offset(s.cur)) * sp
 
     def scrub(s, x):
         t = max(0, min(s.total(), (x - s.PAD + s.ox) / s.pps()))
         acc = 0
-        for i, (b, e) in enumerate(s.segs):
-            if t <= acc + (e - b) or i == len(s.segs) - 1:
-                s.track(i, min(e, b + t - acc))
+        for i, (b, e, sp) in enumerate(s.segs):
+            sp = max(0.01, sp)
+            seg_len = (e - b) / sp
+            if t <= acc + seg_len or i == len(s.segs) - 1:
+                s.track(i, min(e, b + (t - acc) * sp))
                 s.preview.emit(s.src()[1])
                 return
-            acc += e - b
+            acc += seg_len
 
     def commit_scrub(s):
         acc = 0
-        for i, (b, e) in enumerate(s.segs):
-            seg_len = e - b
+        for i, (b, e, sp) in enumerate(s.segs):
+            sp = max(0.01, sp)
+            seg_len = (e - b) / sp
             if s.head <= acc + seg_len or i == len(s.segs) - 1:
-                s.goto(i, min(e, b + s.head - acc))
+                s.goto(i, min(e, b + (s.head - acc) * sp))
                 return
             acc += seg_len
 
@@ -187,10 +197,10 @@ class Timeline(QWidget):
                 "#222"), 2 if sel else 1))
             p.drawRoundedRect(r, 5, 5)
             p.setPen(Qt.white)
-            b, e = s.segs[i]
+            b, e, sp = s.segs[i]
             vr = r.intersected(view)
             p.drawText(vr.adjusted(8, 0, -8, 0),
-                       Qt.AlignCenter, f"{e - b:.2f}s")
+                       Qt.AlignCenter, f"{(e - b) / max(0.01, sp):.2f}s")
             p.fillRect(QRectF(r.left() + 1, r.top() + 8, 4,
                        r.height() - 16), QColor("#ffd54f"))
             p.fillRect(QRectF(r.right() - 5, r.top() + 8, 4,
@@ -230,7 +240,10 @@ class Timeline(QWidget):
         s.before = copy.deepcopy(s.segs)
         i, mode = s.hit(x, y)
         if i is not None:
+            old = s.cur
             s.cur = i
+            if i != old:
+                s.selected.emit(i)
         s.drag = (mode, i, x, list(s.segs[i]) if i is not None else None)
         if mode == 'scrub':
             s.scrub(x)
@@ -251,7 +264,8 @@ class Timeline(QWidget):
                         'scrub' else Qt.ArrowCursor)
             return
         mode, i, x0, orig = s.drag
-        d = (x - x0) / s.pps()
+        sp = max(0.01, orig[2]) if orig else 1.0
+        d = (x - x0) / s.pps() * sp
         if mode == 'scrub':
             s.scrub(x)
         elif mode == 'l':
@@ -265,10 +279,10 @@ class Timeline(QWidget):
             s.preview.emit(t)
         elif mode == 'move' and abs(x - x0) > 4:
             cx, n = s.PAD - s.ox, 0
-            for k, (b, e) in enumerate(s.segs):
+            for k, (b, e, spk) in enumerate(s.segs):
                 if k == i:
                     continue
-                w = (e - b) * s.pps()
+                w = (e - b) / spk * s.pps()
                 if cx + w / 2 < x:
                     n += 1
                 cx += w

@@ -40,6 +40,7 @@ class Main(QMainWindow):
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
         s.clip_mode, s.busy = False, False
+        s.speed_before = None
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
         s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
         s.player = QMediaPlayer()
@@ -78,6 +79,7 @@ class Main(QMainWindow):
         s.tl.preview.connect(s.show_preview)
         s.tl.committed.connect(s.undo.append)
         s.tl.changed.connect(s.refresh)
+        s.tl.selected.connect(s.on_sel)
         s.player.durationChanged.connect(s.on_duration)
         s.player.errorOccurred.connect(s.on_error)
         s.timer = QTimer(s)
@@ -108,10 +110,34 @@ class Main(QMainWindow):
             "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
             "Wheel scroll · Ctrl+Wheel zoom · middle-drag pan")
         hint.setStyleSheet("color:#888")
+        # speed control for the currently selected clip
+        s.speed = QSlider(Qt.Horizontal)
+        s.speed.setRange(1, 40)          # 0.1x .. 4.0x in 0.1 steps
+        s.speed.setValue(10)             # 1.0x
+        s.speed.setFocusPolicy(Qt.NoFocus)
+        s.speed.setMinimumWidth(160)
+        s.speed.setMaximumWidth(320)
+        s.speedVal = QLabel("1.0x")
+        s.speedVal.setMinimumWidth(40)
+        s.speed.valueChanged.connect(s.on_speed)
+        s.speed.sliderPressed.connect(s.on_speed_press)
+        s.speed.sliderReleased.connect(s.on_speed_release)
+        speedRow = QHBoxLayout()
+        speedRow.addWidget(QLabel("Speed:"))
+        speedRow.addWidget(s.speed)
+        speedRow.addWidget(s.speedVal)
+        speedRow.addStretch()
+        s.speedNote = QLabel(
+            "Preview plays clips at source speed — speed changes apply to the exported file only.")
+        s.speedNote.setStyleSheet("color:#e0a020")
+        s.speedNote.setWordWrap(True)
+        s.speedNote.setVisible(False)
         left = QVBoxLayout()
         left.addWidget(s.view, 1)
         left.addLayout(bar)
         left.addWidget(s.tl)
+        left.addLayout(speedRow)
+        left.addWidget(s.speedNote)
         left.addWidget(hint)
 
         # export panel
@@ -239,7 +265,7 @@ class Main(QMainWindow):
 
     def init_segs(s, dur):
         s.tl.dur = dur
-        s.tl.segs = [[0.0, dur]]
+        s.tl.segs = [[0.0, dur, 1.0]]
         s.tl.fit_view()
         s.tl.goto(0, 0.0)
         s.refresh()
@@ -336,10 +362,11 @@ class Main(QMainWindow):
         dt = direction * (1.0 / fps)
         new_head = max(0.0, min(s.tl.total(), s.tl.head + dt))
         acc = 0.0
-        for i, (b, e) in enumerate(s.tl.segs):
-            seg_len = e - b
+        for i, (b, e, sp) in enumerate(s.tl.segs):
+            sp = max(0.01, sp)
+            seg_len = (e - b) / sp
             if new_head <= acc + seg_len or i == len(s.tl.segs) - 1:
-                t = min(e, b + new_head - acc)
+                t = min(e, b + (new_head - acc) * sp)
                 s.tl.track(i, t)
                 s.show_preview(t)
                 return
@@ -380,7 +407,7 @@ class Main(QMainWindow):
             return
         pos = s.player.position() / 1000
         i = s.tl.cur
-        b, e = s.tl.segs[i]
+        b, e, _sp = s.tl.segs[i]
         if pos >= e - 0.01:
             if i + 1 < len(s.tl.segs):
                 nb = s.tl.segs[i + 1][0]
@@ -398,11 +425,11 @@ class Main(QMainWindow):
         if not s.tl.segs:
             return
         i, p = s.tl.src()
-        b, e = s.tl.segs[i]
+        b, e, sp = s.tl.segs[i]
         if not b + MIN < p < e - MIN:
             return
         s.undo.append(copy.deepcopy(s.tl.segs))
-        s.tl.segs[i:i + 1] = [[b, p], [p, e]]
+        s.tl.segs[i:i + 1] = [[b, p, sp], [p, e, sp]]
         s.tl.track(i + 1, p)
         s.refresh()
 
@@ -421,6 +448,36 @@ class Main(QMainWindow):
         s.tl.segs = s.undo.pop()
         i = min(s.tl.cur, len(s.tl.segs) - 1)
         s.tl.goto(i, s.tl.segs[i][0])
+        s.refresh()
+
+    def on_sel(s, i):
+        s.sync_speed()
+
+    def sync_speed(s):
+        if not s.tl.segs:
+            return
+        sp = max(0.1, min(4.0, s.tl.segs[s.tl.cur][2]))
+        s.speed.blockSignals(True)
+        s.speed.setValue(int(round(sp * 10)))
+        s.speed.blockSignals(False)
+        s.speedVal.setText(f"{sp:.1f}x")
+
+    def on_speed_press(s):
+        s.speed_before = copy.deepcopy(s.tl.segs)
+
+    def on_speed(s, v):
+        sp = max(0.1, v / 10.0)
+        s.speedVal.setText(f"{sp:.1f}x")
+        if s.tl.segs:
+            s.tl.segs[s.tl.cur][2] = sp
+            s.tl.update()
+            s.refresh()
+
+    def on_speed_release(s):
+        before = s.speed_before
+        if before is not None and before != s.tl.segs:
+            s.undo.append(before)
+        s.speed_before = None
         s.refresh()
 
     def toggle_crop(s):
@@ -447,6 +504,7 @@ class Main(QMainWindow):
         return max(2, int(w * k) // 2 * 2), max(2, int(h * k) // 2 * 2)
 
     def refresh(s):
+        s.sync_speed()
         fps = FPS_STEPS[s.fps.value()]
         W, H = s.out_size()
         tot = s.tl.total()
@@ -459,6 +517,8 @@ class Main(QMainWindow):
         for b in (s.overBtn, s.numBtn, s.saveAsBtn):
             b.setEnabled(ready)
         s.clipBtn.setEnabled(ready and s.fmt.currentText() in CLIP_FMTS)
+        s.speedNote.setVisible(bool(s.tl.segs) and
+                               any(abs(sp - 1.0) > 1e-9 for _, _, sp in s.tl.segs))
 
     def export(s, mode="numbered"):
         """mode: 'overwrite' | 'numbered' | 'saveas'"""
