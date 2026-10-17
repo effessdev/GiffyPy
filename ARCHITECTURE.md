@@ -77,7 +77,7 @@ State-change protocol to `Main` via four signals:
 | `changed()` | anything visible changed | refresh export panel labels/buttons |
 | `selected(i)` | current clip changed | sync the per-clip speed slider |
 
-Speed control: a slider under the timeline (0.1×–4.0×, one undo snapshot per drag via `sliderPressed`/`sliderReleased`) edits the selected clip's `speed`. The slider stays in sync with the current clip through `Timeline.selected` and `Main.refresh`.
+Speed control: a slider in the toolbar, right of "Fit" (0.1×–4.0×, one undo snapshot per drag via `sliderPressed`/`sliderReleased`) edits the selected clip's `speed`. The slider stays in sync with the current clip through `Timeline.selected` and `Main.refresh`; the amber "preview is at source speed" note sits inline next to the slider (word-wrapped to a bounded width), toggled by the same `refresh`.
 
 ## Cropping (`crop.py`)
 

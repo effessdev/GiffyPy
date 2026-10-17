@@ -19,10 +19,10 @@ import shutil
 import tempfile
 import copy
 from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
-from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap
+from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
                                QGraphicsScene, QGraphicsTextItem, QHBoxLayout, QLabel, QMainWindow,
-                               QMessageBox, QProgressBar, QPushButton, QSlider, QVBoxLayout, QWidget)
+                               QMessageBox, QProgressBar, QPushButton, QSlider, QToolTip, QVBoxLayout, QWidget)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
@@ -96,6 +96,24 @@ class Main(QMainWindow):
             return b
         s.playBtn = btn("▶ Play", s.toggle_play, "Space")
         s.cropBtn = btn("⛶ Crop", s.toggle_crop, "Show crop rectangle", True)
+        # speed control for the currently selected clip (inline in the toolbar)
+        s.speed = QSlider(Qt.Horizontal)
+        s.speed.setRange(1, 40)          # 0.1x .. 4.0x in 0.1 steps
+        s.speed.setValue(10)             # 1.0x
+        s.speed.setFocusPolicy(Qt.NoFocus)
+        # fixed (not min/max) so it can't be squeezed by the layout when the
+        # warning note next to it shows or hides
+        s.speed.setFixedWidth(160)
+        # shown as a tooltip (on hover, and explicitly while pressed/dragged
+        # below) instead of an inline label, so it never shifts the layout
+        s.SPEED_NOTE = ("⚠️ Preview plays clips at source speed. Speed changes "
+                        "apply to the exported file only.")
+        s.speed.setToolTip(s.SPEED_NOTE)
+        s.speed.valueChanged.connect(s.on_speed)
+        s.speed.sliderPressed.connect(s.on_speed_press)
+        s.speed.sliderReleased.connect(s.on_speed_release)
+        s.speedVal = QLabel("1.0x")
+        s.speedVal.setMinimumWidth(40)
         bar = QHBoxLayout()
         for b in (btn("📂 Open", s.open, "Ctrl+O"), s.playBtn, btn("✂ Split", s.split, "S"),
                   btn("🗑 Delete clip", s.delete, "Del"), btn(
@@ -105,39 +123,18 @@ class Main(QMainWindow):
                   btn("🔍+", lambda: s.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
                   btn("Fit", lambda: s.tl.fit_view(), "Fit timeline (Ctrl+0)")):
             bar.addWidget(b)
+        bar.addWidget(QLabel("Speed:"))
+        bar.addWidget(s.speed)
+        bar.addWidget(s.speedVal)
         bar.addStretch()
         hint = QLabel(
             "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
             "Wheel scroll · Ctrl+Wheel zoom · middle-drag pan")
         hint.setStyleSheet("color:#888")
-        # speed control for the currently selected clip
-        s.speed = QSlider(Qt.Horizontal)
-        s.speed.setRange(1, 40)          # 0.1x .. 4.0x in 0.1 steps
-        s.speed.setValue(10)             # 1.0x
-        s.speed.setFocusPolicy(Qt.NoFocus)
-        s.speed.setMinimumWidth(160)
-        s.speed.setMaximumWidth(320)
-        s.speedVal = QLabel("1.0x")
-        s.speedVal.setMinimumWidth(40)
-        s.speed.valueChanged.connect(s.on_speed)
-        s.speed.sliderPressed.connect(s.on_speed_press)
-        s.speed.sliderReleased.connect(s.on_speed_release)
-        speedRow = QHBoxLayout()
-        speedRow.addWidget(QLabel("Speed:"))
-        speedRow.addWidget(s.speed)
-        speedRow.addWidget(s.speedVal)
-        speedRow.addStretch()
-        s.speedNote = QLabel(
-            "Preview plays clips at source speed — speed changes apply to the exported file only.")
-        s.speedNote.setStyleSheet("color:#e0a020")
-        s.speedNote.setWordWrap(True)
-        s.speedNote.setVisible(False)
         left = QVBoxLayout()
         left.addWidget(s.view, 1)
         left.addLayout(bar)
         left.addWidget(s.tl)
-        left.addLayout(speedRow)
-        left.addWidget(s.speedNote)
         left.addWidget(hint)
 
         # export panel
@@ -464,10 +461,13 @@ class Main(QMainWindow):
 
     def on_speed_press(s):
         s.speed_before = copy.deepcopy(s.tl.segs)
+        QToolTip.showText(QCursor.pos(), s.SPEED_NOTE, s.speed)
 
     def on_speed(s, v):
         sp = max(0.1, v / 10.0)
         s.speedVal.setText(f"{sp:.1f}x")
+        if s.speed.isSliderDown():
+            QToolTip.showText(QCursor.pos(), s.SPEED_NOTE, s.speed)
         if s.tl.segs:
             s.tl.segs[s.tl.cur][2] = sp
             s.tl.update()
@@ -517,8 +517,6 @@ class Main(QMainWindow):
         for b in (s.overBtn, s.numBtn, s.saveAsBtn):
             b.setEnabled(ready)
         s.clipBtn.setEnabled(ready and s.fmt.currentText() in CLIP_FMTS)
-        s.speedNote.setVisible(bool(s.tl.segs) and
-                               any(abs(sp - 1.0) > 1e-9 for _, _, sp in s.tl.segs))
 
     def export(s, mode="numbered"):
         """mode: 'overwrite' | 'numbered' | 'saveas'"""
