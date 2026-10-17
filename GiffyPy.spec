@@ -2,17 +2,24 @@
 
 import shutil
 
-# Bundle ffmpeg/ffprobe from the build machine so the dist runs with no system
-# install. They go in datas (not binaries) so PyInstaller never UPX-compresses
-# them; constants.py prefers the bundled copy over PATH at runtime.
+# Fail fast: the app bundles ffmpeg/ffprobe at build time so the dist runs
+# without a user-installed system copy. If they are missing, building would
+# otherwise create a broken app that can only crash at runtime.
 ffmpeg_files = []
+missing = []
 for _name in ("ffmpeg", "ffprobe"):
     _src = shutil.which(_name)
     if _src:
         ffmpeg_files.append((_src, "."))
     else:
-        print(f"WARNING: {_name}.exe not found on PATH at build time — "
-              f"the dist will require the user to have it installed.")
+        missing.append(_name)
+
+if missing:
+    raise RuntimeError(
+        "Missing required build-time binaries: "
+        + ", ".join(missing)
+        + ". Install ffmpeg/ffprobe or add them to PATH before building."
+    )
 
 a = Analysis(
     ['main.py'],
