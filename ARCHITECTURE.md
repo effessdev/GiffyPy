@@ -83,6 +83,8 @@ Speed control: a slider in the toolbar, right of "Fit" (0.1×–4.0×, one undo 
 
 `CropItem` is an image-editor-style overlay: the region _outside_ the crop rect is dimmed via an even-odd `QPainterPath`, rule-of-thirds guides are drawn inside, and eight handles plus the interior support resize/move. Handles are sized by dividing by the view's scale factor so they stay a constant 7 px on screen regardless of zoom. Every geometry change invokes the `on_change` callback (wired to `Main.refresh`), which recomputes the output-size preview. `Main.crop_rect()` snaps crop x/y/w/h to even integers (required by encoders working in YUV 4:2:0).
 
+The preview viewport in `crop.py` is a bounded navigable space instead of an unbounded 2D plane: it starts at a fit-to-frame scale, supports wheel zoom and middle-drag pan, and clamps each move inside a finite navigation rectangle so the user can explore the video without panning forever. The finite bounds are derived from the scene rect and a margin, so the camera behaves like a bounded map viewport rather than an infinite sheet.
+
 ## Export Pipeline (`export.py` + `window.py`)
 
 `build_ffmpeg_args()` is a pure function that assembles a single `ffmpeg` invocation:

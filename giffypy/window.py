@@ -309,7 +309,7 @@ class Main(QMainWindow):
         s.crop.setVisible(s.cropBtn.isChecked())
         s.player.setSource(QUrl.fromLocalFile(path))
         s.player.pause()
-        s.view.fitInView(s.scene.sceneRect(), Qt.KeepAspectRatio)
+        s.view.fit_initial()
         s.setWindowTitle(f"GiffyPy — {os.path.basename(path)}")
         s.status.setText("")
         s.bar.setValue(0)
