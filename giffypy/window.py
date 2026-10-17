@@ -188,14 +188,27 @@ class Main(QMainWindow):
         s.status.setWordWrap(True)
         s.folder = btn("Open folder", lambda: s.path and QDesktopServices.openUrl(
             QUrl.fromLocalFile(os.path.dirname(s.path))))
+        s.export_title = QLabel("<b>Export</b>")
+        s.export_toggle = QPushButton("◀")
+        s.export_toggle.setToolTip("Collapse export panel")
+        s.export_toggle.setFixedWidth(28)
+        s.export_toggle.clicked.connect(s.toggle_export_panel)
         right = QVBoxLayout()
-        for w in (QLabel("<b>Export</b>"), s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info,
-                  s.overBtn, s.numBtn, s.saveAsBtn, s.clipBtn, s.status, s.folder):
+        header = QHBoxLayout()
+        header.addWidget(s.export_title)
+        header.addStretch()
+        header.addWidget(s.export_toggle)
+        right.addLayout(header)
+        s.export_controls = [s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info,
+                            s.overBtn, s.numBtn, s.saveAsBtn, s.clipBtn, s.status, s.folder]
+        for w in s.export_controls:
             right.addWidget(w)
         right.addStretch()
         panel = QWidget()
         panel.setLayout(right)
         panel.setFixedWidth(250)
+        s.export_panel = panel
+        s.export_collapsed = False
         root = QHBoxLayout()
         root.addLayout(left, 1)
         root.addWidget(panel)
@@ -220,6 +233,17 @@ class Main(QMainWindow):
         if not FFMPEG or not FFPROBE:
             s.status.setText(
                 "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
+
+    def toggle_export_panel(s):
+        s.export_collapsed = not s.export_collapsed
+        visible = not s.export_collapsed
+        s.export_title.setVisible(visible)
+        for w in s.export_controls:
+            w.setVisible(visible)
+        s.export_toggle.setText("▶" if s.export_collapsed else "◀")
+        s.export_toggle.setToolTip("Expand export panel" if s.export_collapsed else "Collapse export panel")
+        s.export_panel.setFixedWidth(36 if s.export_collapsed else 250)
+        s.export_panel.updateGeometry()
 
     # ---- loading
     def open(s):

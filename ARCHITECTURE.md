@@ -31,7 +31,7 @@ Dependency direction is strictly acyclic:
 main.py → window.py → {media, export, crop, timeline} → constants.py
 ```
 
-`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; all Qt widgets live in `crop.py`, `timeline.py`, and `window.py`. `window.py` is the only module that wires signals between components.
+`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; all Qt widgets live in `crop.py`, `timeline.py`, and `window.py`. `window.py` is the only module that wires signals between components. The right-hand export panel is a collapsible sidebar: a compact toggle keeps the width to a narrow rail while the detailed controls are hidden, which preserves the main edit canvas without removing access to export actions.
 
 ## Core Data Model
 
