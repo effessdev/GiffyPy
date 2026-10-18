@@ -1,7 +1,7 @@
 from giffypy.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
-from PySide6.QtCore import QPoint, QRectF, Qt, QProcess
+from PySide6.QtCore import QPoint, QRectF, Qt, QProcess, QEvent
 from PySide6.QtGui import QCloseEvent
 import os
 import pytest
@@ -148,6 +148,30 @@ def test_preview_view_zoom_disabled_when_no_file_selected():
     view.wheelEvent(_WheelEvent(120))
 
     assert view.transform().m11() == initial_scale
+
+
+def test_main_uses_real_widget_placeholder_and_requires_explicit_open(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    opened = {"value": False}
+
+    def fake_open():
+        opened["value"] = True
+
+    monkeypatch.setattr(win, "open", fake_open)
+    win.show()
+    win.setup_placeholder()
+
+    assert hasattr(win, "placeholder")
+    assert win.placeholder is not None
+    assert not isinstance(win.placeholder, type(win.scene))
+
+    event = QEvent(QEvent.MouseButtonPress)
+    result = win.eventFilter(win.view.viewport(), event)
+
+    assert result is False
+    assert opened["value"] is False
+    assert win.placeholder.isVisible()
 
 
 def test_main_close_event_handles_deleted_preview_process():

@@ -21,7 +21,7 @@ import copy
 from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
 from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
-                               QGraphicsScene, QGraphicsTextItem, QHBoxLayout, QLabel, QMainWindow,
+                               QGraphicsScene, QHBoxLayout, QLabel, QMainWindow,
                                QMessageBox, QProgressBar, QPushButton, QSlider, QToolTip, QVBoxLayout, QWidget)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
@@ -88,16 +88,36 @@ class Main(QMainWindow):
             getattr(s.sink, 'videoFrameChanged', None).connect(s.on_real_frame)
         except Exception:  # older PySide without QGraphicsVideoItem.videoSink()
             s.sink = None
-        s.placeholder = QGraphicsTextItem()
-        s.placeholder.setHtml(
-            "<div style='text-align: center;'>"
-            "<span style='font-size: 48px;'>🎬</span><br><br>"
-            "<span style='font-size: 20px; font-weight: bold; color: #ccc;'>Drag & Drop Video Here</span><br><br>"
-            "<span style='font-size: 14px; color: #888;'>or click here to select a file</span>"
-            "</div>"
-        )
-        s.scene.addItem(s.placeholder)
         s.view = View(s.scene)
+        s.placeholder = QWidget(s.view.viewport())
+        s.placeholder.setAttribute(Qt.WA_StyledBackground, True)
+        s.placeholder.setStyleSheet(
+            "QWidget { background: transparent; border: none; }"
+            "QLabel { color: #d0d0d0; background: transparent; }"
+            "QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
+            "QPushButton:hover { background: #3c7ae9; }"
+        )
+        s.placeholder_layout = QVBoxLayout(s.placeholder)
+        s.placeholder_layout.setContentsMargins(28, 22, 28, 22)
+        s.placeholder_layout.setSpacing(12)
+        s.placeholder_layout.setAlignment(Qt.AlignCenter)
+
+        icon = QLabel("🎬")
+        icon.setAlignment(Qt.AlignCenter)
+        icon.setStyleSheet("font-size: 48px; background: transparent;")
+        title = QLabel("Drag & Drop Video Here")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
+        action = QPushButton("Select video")
+        action.setFocusPolicy(Qt.NoFocus)
+        action.clicked.connect(s.open)
+        action.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
+                            "QPushButton:hover { background: #3c7ae9; }")
+
+        s.placeholder_layout.addWidget(icon)
+        s.placeholder_layout.addWidget(title)
+        s.placeholder_layout.addWidget(action)
+        s.placeholder.hide()
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
         s.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -190,10 +210,10 @@ class Main(QMainWindow):
         s.scene.setSceneRect(0, 0, 800, 450)
         s.vitem.hide()
         s.view.set_pan_enabled(False)
+        s.placeholder.setFixedSize(360, 180)
+        vp = s.view.viewport()
+        s.placeholder.move((vp.width() - s.placeholder.width()) // 2, (vp.height() - s.placeholder.height()) // 2)
         s.placeholder.show()
-        s.placeholder.setTextWidth(500)
-        br = s.placeholder.boundingRect()
-        s.placeholder.setPos((800 - br.width()) / 2, (450 - br.height()) / 2)
 
     def load(s, path):
         s.loader.load(path)
@@ -289,8 +309,8 @@ class Main(QMainWindow):
     def eventFilter(s, obj, ev):
         """Left/Right arrows: preview-only while held; seek once on release."""
         t = ev.type()
-        if t == QEvent.MouseButtonPress and obj is s.view.viewport() and not s.path and not s.busy:
-            s.open()
+        if t == QEvent.Resize and obj is s.view.viewport() and s.placeholder is not None and not s.path:
+            s.setup_placeholder()
             return True
         if t in (QEvent.KeyPress, QEvent.KeyRelease) and ev.key() in (Qt.Key_Left, Qt.Key_Right):
             w = obj if isinstance(obj, QWidget) else None
