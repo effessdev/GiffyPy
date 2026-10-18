@@ -29,7 +29,7 @@ from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 from .constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, PREVIEW_H, MIN, FILTER, CLIP_FMTS
 from .media import probe
-from .export import EXT_MAP, build_ffmpeg_args
+from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 from .crop import CropItem, View
 from .timeline import Timeline
 
@@ -595,11 +595,7 @@ class Main(QMainWindow):
             if not out.lower().endswith(ext):
                 out += ext
         elif mode == "numbered":
-            if os.path.exists(out):
-                n = 1
-                while os.path.exists(f"{base} (edited {n}){ext}"):
-                    n += 1
-                out = f"{base} (edited {n}){ext}"
+            out = next_numbered_export_path(s.path, ext)
         elif mode == "overwrite":
             if os.path.exists(out):
                 msg = f"“{os.path.basename(out)}” already exists and will be replaced."
