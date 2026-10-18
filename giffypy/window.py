@@ -78,12 +78,12 @@ class Main(QMainWindow):
             "</div>"
         )
         s.scene.addItem(s.placeholder)
-        s.setup_placeholder()
         s.view = View(s.scene)
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
         s.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        s.setup_placeholder()
         s.tl = Timeline()
         s.tl.seek.connect(s.on_seek)
         s.tl.preview.connect(s.show_preview)
@@ -261,6 +261,7 @@ class Main(QMainWindow):
     def setup_placeholder(s):
         s.scene.setSceneRect(0, 0, 800, 450)
         s.vitem.hide()
+        s.view.set_pan_enabled(False)
         s.placeholder.show()
         s.placeholder.setTextWidth(500)
         br = s.placeholder.boundingRect()
@@ -291,6 +292,7 @@ class Main(QMainWindow):
         s.status.setText(f"Can't read file: {ex}")
         s.busy = False
         s.path = None
+        s.view.set_pan_enabled(False)
 
     def _load_complete(s, token, path, W, H, dur, fps):
         if token != s.load_token:
@@ -298,6 +300,7 @@ class Main(QMainWindow):
         s.placeholder.hide()
         s.vitem.show()
         s.path, s.W, s.H, s.undo, s.proxied = path, W, H, [], False
+        s.view.set_pan_enabled(True)
         s.src_fps = fps
         s.tl.segs, s.tl.dur = [], dur
         s.scene.setSceneRect(0, 0, W, H)

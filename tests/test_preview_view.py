@@ -83,3 +83,37 @@ def test_preview_view_pan_moves_scene_center():
 
     assert after != before
     assert abs(after.x() - before.x()) > 0 or abs(after.y() - before.y()) > 0
+
+
+def test_preview_view_pan_disabled_when_no_file_selected():
+    app = QApplication.instance() or QApplication([])
+    scene = QGraphicsScene()
+    scene.setSceneRect(QRectF(0, 0, 800, 450))
+    view = View(scene)
+    view.set_pan_enabled(False)
+    view.resize(800, 600)
+
+    before = view.mapToScene(view.viewport().rect().center())
+    press = _MouseEvent(QPoint(400, 300), Qt.MiddleButton, Qt.MiddleButton)
+    move = _MouseEvent(QPoint(600, 400), Qt.MiddleButton, Qt.MiddleButton)
+
+    view.mousePressEvent(press)
+    view.mouseMoveEvent(move)
+
+    after = view.mapToScene(view.viewport().rect().center())
+
+    assert after == before
+
+
+def test_preview_view_zoom_disabled_when_no_file_selected():
+    app = QApplication.instance() or QApplication([])
+    scene = QGraphicsScene()
+    scene.setSceneRect(QRectF(0, 0, 800, 450))
+    view = View(scene)
+    view.set_pan_enabled(False)
+    view.resize(800, 600)
+
+    initial_scale = view.transform().m11()
+    view.wheelEvent(_WheelEvent(120))
+
+    assert view.transform().m11() == initial_scale

@@ -114,11 +114,21 @@ class View(QGraphicsView):
     def __init__(s, scene=None):
         super().__init__(scene)
         s._drag = None
+        s._pan_enabled = True
         s.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         s.setResizeAnchor(QGraphicsView.AnchorViewCenter)
         s.setDragMode(QGraphicsView.NoDrag)
         s.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def set_pan_enabled(s, enabled):
+        s._pan_enabled = bool(enabled)
+        if not s._pan_enabled:
+            s._drag = None
+            s.setCursor(Qt.ArrowCursor)
+
+    def is_pan_enabled(s):
+        return s._pan_enabled
 
     def bounds(s):
         rect = s.sceneRect()
@@ -147,6 +157,9 @@ class View(QGraphicsView):
         s._clamp_view()
 
     def wheelEvent(s, ev):
+        if not s._pan_enabled:
+            ev.ignore()
+            return
         if not s.scene() or s.sceneRect().isEmpty():
             return
         delta = ev.angleDelta().y()
@@ -164,6 +177,9 @@ class View(QGraphicsView):
 
     def mousePressEvent(s, ev):
         if ev.button() == Qt.MiddleButton:
+            if not s._pan_enabled:
+                ev.ignore()
+                return
             s._drag = ev.pos()
             s.setCursor(Qt.ClosedHandCursor)
             ev.accept()
@@ -171,6 +187,8 @@ class View(QGraphicsView):
         super().mousePressEvent(ev)
 
     def mouseMoveEvent(s, ev):
+        if not s._pan_enabled:
+            return
         if s._drag is not None and ev.buttons() & Qt.MiddleButton:
             pos = ev.pos()
             last = s.mapToScene(s._drag)
@@ -186,6 +204,10 @@ class View(QGraphicsView):
 
     def mouseReleaseEvent(s, ev):
         if ev.button() == Qt.MiddleButton:
+            if not s._pan_enabled:
+                s._drag = None
+                s.setCursor(Qt.ArrowCursor)
+                return
             s._drag = None
             s.setCursor(Qt.ArrowCursor)
             ev.accept()
