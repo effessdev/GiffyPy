@@ -1,125 +1,137 @@
 # Architecture
 
-GiffyPy is a single-window desktop video editor built around two pillars: a **Qt GUI** (`PySide6`) for interaction and preview, and **ffmpeg/ffprobe** as an out-of-process media engine for probing, proxy generation, and export. The Python side holds no pixel pipeline of its own — it manages state, timelines, and user intent, and delegates all heavy media work to short-lived `ffmpeg` child processes.
+GiffyPy is a single-window desktop video editor built around two pillars: a Qt GUI (`PySide6`) for interaction and preview, and `ffmpeg`/`ffprobe` as the out-of-process media engine for probing, proxy generation, and export. The Python layer does not own a pixel pipeline; it manages state, timelines, and user intent, and delegates the expensive work to short-lived child processes.
 
 ## Tech Stack
 
-| Layer                     | Technology                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| Language                  | Python 3 (≥ 3.10)                                                               |
-| GUI / event loop          | PySide6 (`QtWidgets`, `QtMultimedia`, `QtMultimediaWidgets`)                    |
-| Media decoding / playback | `QMediaPlayer` + `QVideoSink` (native Qt playback when the codec allows)        |
-| Media processing          | External `ffmpeg` / `ffprobe` binaries, launched via `QProcess` or `subprocess` |
-| Packaging                 | PyInstaller (`GiffyPy.spec`, `package.bat`), Windows-focused                    |
+- Language: Python 3 (≥ 3.10)
+- GUI / event loop: PySide6 (`QtWidgets`, `QtMultimedia`, `QtMultimediaWidgets`)
+- Media decoding / playback: `QMediaPlayer` + `QVideoSink` (native Qt playback when the codec allows)
+- Media processing: external `ffmpeg` / `ffprobe` binaries launched via `QProcess` or `subprocess`
+- Packaging: PyInstaller (`GiffyPy.spec`, `package.bat`), Windows-focused
 
 ## Module Layout
 
 ```
-main.py                 entry point: QApplication, icon, window creation, argv file loading
-conftest.py             pytest root config: puts the repo root on sys.path so tests import `giffypy`
+main.py                       entry point: QApplication, icon, argv file loading
+conftest.py                   pytest root config; puts repo root on sys.path
+
 giffypy/
-  constants.py          bundled-first ffmpeg/ffprobe discovery, tunables (PREVIEW_FPS, PREVIEW_H, MIN, ...)
-  media.py              ffprobe wrapper: probe() -> (width, height, duration, fps)
-  crop.py               CropItem (interactive crop rectangle QGraphicsItem) + View (auto-fit QGraphicsView)
-  timeline.py           Timeline widget: clip model, scrub/trim/reorder gestures, zoom/pan, painting
-  export.py             pure function build_ffmpeg_args(): segments + crop + settings -> ffmpeg CLI args
-  window.py             Main (QMainWindow): orchestrates everything — loading, preview, playback, undo, export
+  constants.py                bundled-first ffmpeg/ffprobe discovery and tunables
+  media.py                    ffprobe wrapper: probe() -> (width, height, duration, fps)
+  loader.py                   MediaLoader: background metadata load and Qt signal bridge
+  preview.py                  PreviewManager: proxy generation, scrub painting, frame hiding
+  editor.py                   EditorController: playback, splitting, trims, speed edits, undo glue
+  export.py                   pure ffmpeg argument builder + numbered export naming
+  exporter.py                 ExportController: export lifecycle, progress parsing, save modes
+  crop.py                     CropItem + View: crop overlay and bounded navigation viewport
+  timeline.py                 Timeline widget: clips, scrub, trim, reorder, pan/zoom painting
+  screen_recorder.py          ScreenRecorder: 30 FPS desktop capture wrapper and cursor flag
+  session.py                  reset_session(): clears preview state and returns to placeholder UI
+  window.py                   Main (QMainWindow): thin orchestration layer, wiring, and state
+  ui/
+    export_panel.py          export sidebar widgets and start-over confirmation
+    toolbar.py                toolbar controls and main window layout
+    theme.py                  shared color/theme styling
 ```
 
-Dependency direction is strictly acyclic:
+Dependency direction stays acyclic:
 
 ```
-main.py → window.py → {media, export, crop, timeline} → constants.py
+main.py → window.py → {loader, preview, editor, exporter, crop, timeline, screen_recorder, session} → constants.py
+window.py ──> ui/*.py
+export.py, media.py ──> no Qt imports
 ```
 
-`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; all Qt widgets live in `crop.py`, `timeline.py`, and `window.py`. `window.py` is the only module that wires signals between components. The right-hand export panel is a collapsible sidebar: a compact toggle keeps the width to a narrow rail while the detailed controls are hidden, which preserves the main edit canvas without removing access to export actions.
+`window.py` is intentionally thin: it creates the Qt scene, owns the main state, and delegates editing/export behavior to `EditorController` and `ExportController`. The UI widgets are assembled in `giffypy/ui`, while the real media work remains in the process-free helpers (`media.py`, `preview.py`, `export.py`, `screen_recorder.py`).
 
 ## Core Data Model
 
 The edit state is deliberately tiny and non-destructive:
 
-- **`s.tl.segs`** — a list of `[start, end, speed]` triples in _edit order_: a source-time range plus a playback rate. This is the entire edit; the original file is never modified. Splitting, trimming, deleting, and reordering are pure list operations; `speed` travels with the clip.
-- **`s.crop.r`** — a `QRectF` in source-pixel coordinates (only meaningful when the crop toggle is on).
-- **Export settings** — format, FPS step index, resolution scale %, quality 1–100, read live from widgets at export time.
-- **Undo stack** — `s.undo` is a list of `copy.deepcopy(segs)` snapshots. A snapshot is pushed when a `Timeline` gesture _commits_ (mouse release with an actual change) or on split/delete/undo. Undo simply pops and restores.
+- `s.tl.segs` — a list of `[start, end, speed]` triples in edit order. Each entry is a source-time range plus playback rate. The original file is never modified; splitting, trimming, deleting, and reordering are pure list operations.
+- `s.crop.r` — a `QRectF` in source-pixel coordinates, used only when the crop toggle is enabled.
+- Export settings — format, FPS step index, resolution scale %, quality 1–100, read from widgets when export runs.
+- Undo stack — `s.undo` is a list of `copy.deepcopy(segs)` snapshots. A snapshot is pushed when a `Timeline` gesture commits or when split/delete/undo changes the edit list.
 
-Coordinates come in two flavors and the `Timeline` translates between them constantly: **source time** (a position in the original file) and **edit time** (position in the concatenated output). A segment's edit duration is `(end - start) / speed`, so clip widths, offsets, and total length are all in edit time; the mapping multiplies or divides by `speed` at the seam. `offset()`, `src()`, `scrub()`, and `head` handle the mapping.
+Coordinates are translated between source time and edit time in `timeline.py`. A segment's edit length is `(end - start) / speed`, so clip widths, offsets, and total timeline length all live in edit time. `offset()`, `src()`, `scrub()`, and `head` carry the mapping between the two domains.
 
 ## Import & Playback Pipeline
 
-1. **Probe** (`media.py`): `load(path)` dispatches ffprobe to a background thread so the GUI stays responsive while it gathers dimensions, duration, and `avg_frame_rate` (fraction parsing, with fallbacks). The worker posts the result back to the Qt thread via `QTimer.singleShot` before the scene is finalized.
-2. **Scene setup** (`window.py`): a `QGraphicsScene` layers three items — `QGraphicsVideoItem` (z=0, real decoder output), a `QGraphicsPixmapItem` proxy overlay (z=0.5), and the `CropItem` (z=1) — inside a `View` that re-fits on resize.
-3. **Proxy sequence** (`window.start_preview`): immediately on load, a background `QProcess` runs ffmpeg to emit a low-resolution JPEG sequence (`f%06d.jpg`, height ≤ `PREVIEW_H`) at the _source frame rate_ (1:1 frame mapping) into a fresh temp dir. Scrubbing is then an O(1) file read instead of a video seek — this is what makes scrubbing feel instant.
-4. **Scrub preview** (`window.show_preview`): time → frame index → cached `QPixmap` (LRU-ish dict, cleared past 120 entries) painted over the video item while paused.
-5. **Commit / real frame**: on gesture release, a true `QMediaPlayer.setPosition()` seek runs; `QVideoSink.videoFrameChanged` fires `on_real_frame`, which hides the proxy overlay so the full-resolution decoded frame shows. If the sink API is unavailable, a 300 ms timer hides the proxy instead.
-6. **Codec fallback** (`window.on_error`): if Qt's backend cannot decode the file, a _second_ proxy strategy kicks in — ffmpeg transcodes a light 720p H.264 MP4 into the temp dir and the player re-points at it, giving native playback for codecs Qt can't open.
+1. **Probe** (`media.py` + `loader.py`): `probe(path)` runs `ffprobe` in a worker thread and returns width, height, duration, and `avg_frame_rate`. `MediaLoader.load()` posts the result back to the main window via Qt signals once the work is complete.
+2. **Scene setup** (`window.py`): a `QGraphicsScene` layers three items — `QGraphicsVideoItem` (real decoded output), a `QGraphicsPixmapItem` proxy overlay, and the crop item — inside a `View` that re-fits on resize. When no media is loaded, a centered placeholder widget shows drag-and-drop instructions and buttons for "Open file" and "Record screen".
+3. **Screen capture** (`screen_recorder.py`): the placeholder button starts a dedicated `ffmpeg gdigrab` capture process at 30 FPS and offers a keep/discard dialog after stopping. A default-off checkbox toggles the `-draw_mouse` flag before the desktop input, so cursor capture is opt-in.
+4. **Proxy generation** (`preview.py`): after a file loads, `PreviewManager.start_preview()` runs a background `QProcess` to emit a low-resolution JPEG sequence (`f%06d.jpg`) into a temp directory, with height capped by `PREVIEW_H` and rate clamped to `min(240, src_fps)` or the fallback `PREVIEW_FPS` value.
+5. **Scrub preview** (`PreviewManager.show_preview()`): time → frame index → cached `QPixmap` overlay painted over the video item while paused.
+6. **Commit / real frame**: when the user drops a scrub or a trim ends, `player.setPosition()` seeks to the source time. `QVideoSink.videoFrameChanged` hides the proxy overlay when a real frame arrives. If the sink API is unavailable, a short `QTimer` hides the proxy instead.
+7. **Codec fallback** (`window.on_error`): if Qt cannot decode the source, a second proxy path transcodes a small H.264 MP4 to a temp file and re-points the `QMediaPlayer` to it so playback still works for codecs Qt cannot open.
 
-Continuous playback doesn't use proxies: a 15 ms `QTimer` (`tick`) mirrors `player.position()` onto the timeline playhead and advances across clip boundaries, skipping the seek entirely when adjacent clips are contiguous in the source. Preview deliberately ignores per-clip speed — the player always runs at source rate — so a 2× clip's edit-time playhead advances at half wall-clock speed and preview duration equals source duration. Whenever any speed ≠ 1.0, `Main.refresh` shows an amber note explaining that the difference applies to the export only.
+Continuous playback does not use the proxy path: a 15 ms `QTimer` mirrors `player.position()` onto the timeline playhead and advances across clip boundaries without forcing a seek when adjacent clips are contiguous in source time. Preview intentionally ignores per-clip speed; the player always runs at source rate. The speed slider is therefore export-only, and the tooltip note warns users that the preview is at source speed while the export uses the clip speed values.
 
-Arrow-key stepping (`Left` / `Right`) is caught by an app-level `eventFilter` on `Main` (installed in `__init__`). While a key is held (including auto-repeat), each step advances the playhead by one export-frame and repaints only the low-res proxy via `show_preview`; the real `player.setPosition()` seek is issued once, on non-auto-repeat key release, through `commit_step`.
+Arrow-key stepping (`Left` / `Right`) is handled by dedicated `QShortcut`s installed in `Main._install_shortcuts()`, so the preview viewport never steals the key events. Each press advances the timeline playhead by one export frame, and the proxy is refreshed without letting the canvas pan or scroll.
 
 ## Timeline Widget (`timeline.py`)
 
-A fully custom-painted `QWidget` (no QGraphicsScene) with a horizontal `QScrollBar` for pan. Three interaction zones resolved by `hit()`:
+The timeline is a fully custom-painted `QWidget` (not a `QGraphicsScene`) with a horizontal `QScrollBar` for pan. Three interaction zones are detected by `hit()`:
 
-- **Ruler / empty space** → scrub (`preview` signal during drag for proxy-only updates; `seek` on release).
-- **Clip body** → drag to reorder (live re-insertion into `segs` while dragging).
-- **Clip edges** (yellow handles) → trim start/end with live proxy preview; left-edge trims "shift in place" during drag and ripple on release.
+- Ruler / empty space → scrub (`preview` signal during drag, `seek` on release)
+- Clip body → drag to reorder live in `segs`
+- Clip edges (yellow handles) → trim start/end with live proxy preview; the left-edge trim keeps the right edge fixed during the drag and ripples only on release
 
-Edge hit-testing checks the _selected_ clip first so adjacent clips sharing a border don't steal the grab. Zoom is pixels-per-second (`z`) in edit time, anchored at the mouse for `Ctrl+Wheel`; `fit_view()` snapshots a fixed fit zoom and nothing auto-refits afterward. Clip widths are edit-duration × zoom, so changing a clip's speed changes its width and the total length; the top ruler reads edit time.
+Edge hit-testing checks the currently selected clip first so adjacent clips sharing a border do not steal the trim grab. Zoom is stored in pixels per second (`z`) in edit time and is anchored to the mouse for `Ctrl+Wheel`; `fit_view()` snapshots a fixed fit zoom and thereafter stays fixed until the user zooms again. Clip widths are edit duration × zoom, so changing a clip's speed changes both its width and the total timeline length.
 
-State-change protocol to `Main` via four signals:
+The timeline emits a small set of signals to the main window and the controller layer:
 
-| Signal              | Meaning                      | Main's reaction                     |
-| ------------------- | ---------------------------- | ----------------------------------- |
-| `seek(i, t)`        | committed position change    | move player, show real frame        |
-| `preview(t)`        | live scrub, proxy frame only | paint proxy, no seek                |
-| `committed(before)` | gesture changed `segs`       | push snapshot for undo              |
-| `changed()`         | anything visible changed     | refresh export panel labels/buttons |
-| `selected(i)`       | current clip changed         | sync the per-clip speed slider      |
+- `seek(i, t)`: committed position change handled by `Main.on_seek()`.
+- `preview(t)`: live scrub proxy preview handled by `Main.show_preview()`.
+- `committed(before)`: gesture changed `segs`, used to push an undo snapshot.
+- `changed()`: timeline state changed, causing refresh of export labels and buttons.
+- `selected(i)`: current clip changed, used to sync the speed slider.
 
-Speed control: a slider in the toolbar, right of "Fit" (0.1×–4.0×, one undo snapshot per drag via `sliderPressed`/`sliderReleased`) edits the selected clip's `speed`. The slider stays in sync with the current clip through `Timeline.selected` and `Main.refresh`; the amber "preview is at source speed" note sits inline next to the slider (word-wrapped to a bounded width), toggled by the same `refresh`.
+The speed control is implemented in the toolbar layer (`giffypy/ui/toolbar.py`) and synced from `EditorController.sync_speed()`. Its slider is set to a 0.1×–4.0× range, and `on_speed_press()` / `on_speed_release()` capture a before/after state so one undo snapshot is recorded for each drag. The visible note is not a persistent amber banner; the current UI shows the tooltip text on the speed slider while the user drags or hovers it, warning that preview plays at source speed and clip speed affects the export only.
 
 ## Cropping (`crop.py`)
 
-`CropItem` is an image-editor-style overlay: the region _outside_ the crop rect is dimmed via an even-odd `QPainterPath`, rule-of-thirds guides are drawn inside, and eight handles plus the interior support resize/move. Handles are sized by dividing by the view's scale factor so they stay a constant 7 px on screen regardless of zoom. Every geometry change invokes the `on_change` callback (wired to `Main.refresh`), which recomputes the output-size preview. `Main.crop_rect()` snaps crop x/y/w/h to even integers (required by encoders working in YUV 4:2:0).
+`CropItem` is an image-editor-style overlay: the region outside the crop rectangle is dimmed with an even-odd `QPainterPath`, rule-of-thirds guides are drawn inside, and eight handles plus the interior support resize/move operations. Handle size is determined from the view scale so they stay visually constant on screen. Every geometry change invokes the `on_change` callback, which triggers `refresh()` for export-size recalculation. `ExportController.crop_rect()` snaps the crop x/y/w/h to even integers before encoding.
 
-The preview viewport in `crop.py` is a bounded navigable space instead of an unbounded 2D plane: it starts at a fit-to-frame scale, supports trackpad/wheel panning, `Ctrl+Wheel` zoom, and middle-drag pan, and clamps each move inside a finite navigation rectangle so the user can explore the video without panning forever. The finite bounds are derived from the scene rect and a margin, so the camera behaves like a bounded map viewport rather than an infinite sheet.
+The preview viewport in `crop.py` is a bounded navigable space rather than an unbounded sheet: it starts at a fit-to-frame scale, supports trackpad/wheel panning, `Ctrl+Wheel` zoom, and middle-drag pan, while clamping each move inside a finite navigation rectangle. This makes the crop viewport behave more like a bounded map than an infinite canvas.
 
-## Export Pipeline (`export.py` + `window.py`)
+## Export Pipeline (`export.py` + `exporter.py`)
 
 `build_ffmpeg_args()` is a pure function that assembles a single `ffmpeg` invocation:
 
-1. **Per-segment** `[0:v]trim=...,setpts=(PTS-STARTPTS)/SPEED[vN]` chains, then `concat=n=N:v=1:a=0` — the timeline is expressed entirely as a filtergraph; no intermediate files. The division is skipped at 1.0× so the untouched path stays byte-identical.
-2. **Shared post-chain**: `crop` (only if the rect differs from source size) → `fps` → `scale` with lanczos.
-3. **Format-specific encoding**:
-   - **GIF**: quality maps to palette color count (16–256); `split` + `palettegen=stats_mode=diff` + `paletteuse` with Bayer dithering in one filtergraph.
-   - **WebP**: `libwebp_anim`, lossy, quality passed through.
-   - **WebM**: `libvpx-vp9` with CRF inverted from quality.
-   - **MP4/MOV/MKV**: `libx264` + `yuv420p`, CRF inverted from quality.
+1. Per-segment filter chains: `[0:v]trim=...,setpts=(PTS-STARTPTS)/SPEED[vN]` followed by `concat=n=N:v=1:a=0`. The timeline is represented entirely as a filtergraph; no intermediate files are created in the edit pipeline.
+2. Shared post-chain: `crop` (when the crop differs from source size) → `fps` → `scale` with `lanczos`.
+3. Format-specific encoding:
+   - GIF: palette generation and palette use with Bayer dithering
+   - WebP: `libwebp_anim` with lossy quality and loop=0
+   - WebM: `libvpx-vp9` with CRF derived from quality
+   - MP4 / MOV / MKV: `libx264` + `yuv420p` with CRF derived from quality
 
-`window.py` handles the lifecycle: exports run in a `QProcess` with `-progress pipe:1`, parsing `out_time_us` lines to drive the progress bar. Output is always written to a `.__tmp__` file and `os.replace`d into place on success (atomic-ish, and survives mid-export failure). Four save modes (`overwrite` with confirmation, `numbered` copy, `saveas` dialog, `copy to clipboard` via temp file + `QImage` → clipboard, GIF/WebP only) share this machinery through a `clip_mode` flag. A `busy` flag disables export buttons during a run. Overwriting the source file first releases the player's file handle (`setSource(QUrl())`), a Windows-specific necessity.
-
-The numbered-copy save name is generated by `next_numbered_export_path()` in `export.py`: it always uses the pattern `name (GiffyPy edit NN)` with zero-padded `NN`, starts at `01`, and scans all files matching that stem regardless of the selected output extension so exported GIF/WebP/MP4 copies share a single numbering sequence.
+`ExportController` owns the runtime lifecycle: it chooses the save mode (`overwrite`, `numbered`, or `saveas`), runs the export in a `QProcess`, parses `-progress pipe:1`, updates the progress bar, writes to a temporary `.__tmp__` file, and swaps it into place with `os.replace()` on success. This also handles the Windows-specific case where overwriting the current source file requires releasing the media player's file handle first. `next_numbered_export_path()` continues to generate names like `name (GiffyPy edit 01)` and scans existing files of the same stem regardless of output extension so GIF/WebP/MP4 copies share a single numbering sequence.
 
 ## Process & Threading Model
 
-Everything GUI-related runs on the single Qt event-loop thread. All media work is out-of-process, and the expensive metadata call is moved off the GUI thread:
+Everything GUI-related runs on the single Qt event-loop thread. Media work is moved off the GUI thread or run in child processes:
 
-- **Background thread** — ffprobe runs in a worker thread during file load so the window stays responsive while metadata is collected.
-- **`QProcess`** — proxy JPEG generation (killable, replaced per-load), codec-fallback transcoding, and exports (progress parsed from stdout). The preview process is explicitly cleared on finish and guarded during shutdown so a `deleteLater()`/deleted native object does not crash the main window close path.
-- **Qt multimedia internals** — `QMediaPlayer` decoding happens in native Qt threads; frames arrive via the `videoFrameChanged` signal.
+- Background thread — `ffprobe` runs in a worker thread during file load so the window stays responsive while metadata is collected.
+- `QProcess` — proxy JPEG generation, codec-fallback transcoding, and exports all run via `QProcess`, with preview processes explicitly cleared on finish and guarded during shutdown.
+- Qt multimedia internals — `QMediaPlayer` decoding happens in native Qt threads; frames arrive through `QVideoSink.videoFrameChanged`.
 
-Temp artifacts live in the system temp dir: `giffypy_prev_*` (JPEG proxy dirs, old ones cleaned via delayed `QTimer.singleShot` and on close), `giffypy_proxy.mp4` (codec fallback), `giffypy_clip_*` (clipboard exports). There is no persistent project file; state is in-memory only.
+Temporary artifacts live in the system temp directory (`giffypy_prev_*`, `giffypy_proxy.mp4`, ...). There is no persistent project file; the edit state remains in memory until the user saves a new export.
 
 ## Known Constraints & Conventions
 
-- ffmpeg/ffprobe are resolved once at import in `constants.py`: the bundled copy in the frozen dist's `sys._MEIPASS` takes precedence, otherwise a `PATH` lookup (`shutil.which`); a startup warning in the status label shows if neither is found.
-- The codebase uses single-letter parameter/self names (`s`) as a deliberate compactness convention.
-- `QVideoSink`'s Python signal is `videoFrameChanged` (`frameObserved` is the C++ alias); connecting the wrong name fails silently, so it's accessed via `getattr` with a `try` guard for older PySide6.
+- `ffmpeg`/`ffprobe` are resolved once at import in `constants.py`: the bundled copy in `sys._MEIPASS` takes precedence, otherwise a `PATH` search is used.
+- The codebase intentionally uses short names (`s`) in methods and some local variables for compactness.
+- `QVideoSink` exposes a Python signal called `videoFrameChanged`; older PySide6 variants may present `frameObserved` as the C++ alias. The code guards against both via `getattr`.
 - Minimum clip length is `MIN = 0.05 s`; crop handles enforce a 16 px minimum rect.
-- Proxy FPS is capped at 240 and falls back to `PREVIEW_FPS` (12) when the source rate can't be probed (some GIFs / VFR files).
+- Proxy FPS is capped at 240 and falls back to `PREVIEW_FPS` when source FPS is unavailable or the file is VFR/GIF-like.
 
 ## Packaging
 
-`package.bat` runs PyInstaller from `GiffyPy.spec` (`--onedir --windowed`, `icon.ico` as data). The spec also copies `ffmpeg.exe`/`ffprobe.exe` from the build machine's `PATH` into the dist folder (as datas, so UPX never touches them), so end users don't need ffmpeg installed; the spec prints a warning at build time if they're missing. `main.py.resource_path` resolves assets from `sys._MEIPASS` when frozen, and `constants.find_binary` prefers that bundled location over the system `PATH`.
+`package.bat` checks whether `ffmpeg.exe` is on `PATH`; if not, it installs a Gyan FFmpeg package via `winget`, locates the installed binary, and logs an `[INFO]` message before launching PyInstaller. The same pattern is used for Python: if `python` is not on `PATH`, the script installs it, then resolves the executable path so later build steps do not depend on a refreshed shell. Once Python is available, the script upgrades `pip`, installs dependencies from `requirements.txt`, ensures PyInstaller is installed, then invokes the build.
+
+After a successful build, `package.bat` copies `scripts/create_shortcut.bat` into `dist/GiffyPy`, so the shortcut helper ships alongside `GiffyPy.exe`. The spec also copies `ffmpeg.exe` and `ffprobe.exe` into the dist folder as datas so end users do not need a separate ffmpeg installation. `main.py.resource_path()` resolves assets from `sys._MEIPASS` when frozen, and `constants.find_binary()` prefers the bundled binary to the system `PATH`.
+
+`create_shortcut.bat` creates a `.lnk` link in the current user's Start Menu Programs folder using PowerShell and `WScript.Shell`, so the app appears in Windows Search without requiring administrator rights.

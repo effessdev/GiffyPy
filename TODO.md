@@ -1,0 +1,2 @@
+- make `package.bat` install ffmpeg if not already
+- also ship `add_to_start_menu.bat` and `remove_from_start_menu.bat`

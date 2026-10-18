@@ -114,6 +114,19 @@ class Timeline(QWidget):
         s.sync()
         s.update()
 
+    def reset(s):
+        s.segs = []
+        s.dur = 0.0
+        s.cur = 0
+        s.head = 0.0
+        s.drag = None
+        s.before = []
+        s.pan = None
+        s.ox = 0.0
+        s.z = 100.0
+        s.sync()
+        s.update()
+
     def resizeEvent(s, e):
         super().resizeEvent(e)
         s.sync()

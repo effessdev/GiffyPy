@@ -1,8 +1,9 @@
 from giffypy.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
-from PySide6.QtCore import QPoint, QRectF, Qt, QProcess
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QPoint, QRectF, Qt, QProcess, QEvent, QMimeData, QUrl
+from PySide6.QtGui import QCloseEvent, QDropEvent, QKeyEvent
+from PySide6.QtMultimedia import QMediaPlayer
 import os
 import pytest
 
@@ -148,6 +149,175 @@ def test_preview_view_zoom_disabled_when_no_file_selected():
     view.wheelEvent(_WheelEvent(120))
 
     assert view.transform().m11() == initial_scale
+
+
+def test_main_arrow_keys_are_not_hijacked_by_global_event_filter(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    calls = []
+
+    monkeypatch.setattr(win, "step_frame", lambda direction: calls.append(direction))
+    monkeypatch.setattr(win, "commit_step", lambda: calls.append("commit"))
+
+    press = QKeyEvent(QEvent.KeyPress, Qt.Key_Left, Qt.NoModifier)
+    release = QKeyEvent(QEvent.KeyRelease, Qt.Key_Left, Qt.NoModifier)
+
+    assert win.eventFilter(win, press) is False
+    assert win.eventFilter(win, release) is False
+    assert calls == []
+
+
+def test_editor_playing_uses_qt_playback_state_enum(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+
+    monkeypatch.setattr(win.player, "playbackState", lambda: QMediaPlayer.PlaybackState.PlayingState)
+
+    assert win.editor.playing() is True
+
+
+def test_export_panel_has_no_copy_to_clipboard_action():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+
+    assert not hasattr(win, "clipBtn")
+    assert not hasattr(win, "copy_to_clipboard")
+
+
+def test_discard_and_start_over_resets_session_without_quitting_app():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.show()
+    win.path = r"C:\fake\clip.mp4"
+    win.W = 1920
+    win.H = 1080
+    win.undo = ["stale"]
+    win.tl.segs = [(0.0, 8.0, 1.0), (8.0, 12.0, 1.5)]
+    win.tl.cur = 1
+    win.tl.head = 9.5
+    win.tl.drag = ("move", 1, 10, [0.0, 8.0, 1.0])
+
+    assert hasattr(win, "discard_btn")
+    assert win.discard_btn.text() == "Discard and Start Over"
+
+    win.reset_session()
+
+    assert win.path is None
+    assert win.W == 0
+    assert win.H == 0
+    assert win.undo == []
+    assert win.tl.segs == []
+    assert win.tl.cur == 0
+    assert win.tl.head == 0.0
+    assert win.tl.drag is None
+    assert win.placeholder.isVisible()
+
+
+def test_timeline_reset_clears_all_clip_state():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.tl.segs = [(0.0, 8.0, 1.0), (8.0, 12.0, 1.5)]
+    win.tl.dur = 12.0
+    win.tl.cur = 1
+    win.tl.head = 9.5
+    win.tl.drag = ("move", 1, 10, [0.0, 8.0, 1.0])
+    win.tl.before = [(0.0, 8.0, 1.0)]
+    win.tl.pan = (5, 3.0)
+
+    win.tl.reset()
+
+    assert win.tl.segs == []
+    assert win.tl.dur == 0.0
+    assert win.tl.cur == 0
+    assert win.tl.head == 0.0
+    assert win.tl.drag is None
+    assert win.tl.before == []
+    assert win.tl.pan is None
+
+
+def test_discard_and_start_over_requires_confirmation(monkeypatch):
+    import giffypy.ui.export_panel as export_panel
+
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    reset_calls = {"count": 0}
+
+    def fake_question(*args, **kwargs):
+        return 16384
+
+    def fake_reset(window):
+        reset_calls["count"] += 1
+
+    monkeypatch.setattr(export_panel.QMessageBox, "question", fake_question)
+    monkeypatch.setattr(export_panel, "reset_session", fake_reset)
+    win.discard_btn.click()
+
+    assert reset_calls["count"] == 1
+
+    def fake_no_question(*args, **kwargs):
+        return 65536
+
+    monkeypatch.setattr(export_panel.QMessageBox, "question", fake_no_question)
+    win.discard_btn.click()
+
+    assert reset_calls["count"] == 1
+
+
+def test_numbered_copy_button_disabled_for_screen_recordings(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.path = str(tmp_path / "giffypy_record_example.mp4")
+    win.tl.segs = [(0.0, 1.0, 1.0)]
+    win.busy = False
+    win.refresh()
+
+    assert win.numBtn.isEnabled() is False
+
+
+def test_main_uses_real_widget_placeholder_and_requires_explicit_open(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    opened = {"value": False}
+
+    def fake_open():
+        opened["value"] = True
+
+    monkeypatch.setattr(win, "open", fake_open)
+    win.show()
+    win.setup_placeholder()
+
+    assert hasattr(win, "placeholder")
+    assert win.placeholder is not None
+    assert not isinstance(win.placeholder, type(win.scene))
+
+    event = QEvent(QEvent.MouseButtonPress)
+    result = win.eventFilter(win.view.viewport(), event)
+
+    assert result is False
+    assert opened["value"] is False
+    assert win.placeholder.isVisible()
+
+
+def test_main_placeholder_accepts_files_dragged_onto_it(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.show()
+    win.setup_placeholder()
+    loaded = {}
+
+    def fake_load(path):
+        loaded["path"] = path
+
+    monkeypatch.setattr(win, "load", fake_load)
+
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(r"C:\\fake\\clip.mp4")])
+    event = QDropEvent(QPoint(10, 10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+
+    win.placeholder.dragEnterEvent(event)
+    win.placeholder.dropEvent(event)
+
+    assert os.path.normpath(loaded["path"]) == os.path.normpath(r"C:\fake\clip.mp4")
 
 
 def test_main_close_event_handles_deleted_preview_process():

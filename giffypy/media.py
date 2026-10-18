@@ -24,8 +24,14 @@ def probe(path):
     r = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries",
                         "stream=width,height,duration,avg_frame_rate:format=duration", "-of", "json", path],
                        capture_output=True, text=True)
-    j = json.loads(r.stdout)
-    st = j["streams"][0]
+    try:
+        j = json.loads(r.stdout)
+    except json.JSONDecodeError as ex:
+        raise ValueError(f"Could not decode media metadata for: {path}") from ex
+    streams = j.get("streams") or []
+    if not streams:
+        raise ValueError(f"No video streams found in {path}")
+    st = streams[0]
     dur = 0.0
     for v in (j.get("format", {}).get("duration"), st.get("duration")):
         try:
