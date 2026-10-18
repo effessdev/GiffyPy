@@ -52,12 +52,6 @@ def build_export_panel(window):
         "Choose where to save the file",
         lambda: window.export("saveas"),
     )
-    window.clipBtn = _export_button(
-        "Copy to Clipboard",
-        "cp",
-        "Export and copy to clipboard (only GIF / WebP support this)",
-        window.copy_to_clipboard,
-    )
 
     window.bar = QProgressBar()
     window.bar.setRange(0, 100)
@@ -91,7 +85,6 @@ def build_export_panel(window):
         window.overBtn,
         window.numBtn,
         window.saveAsBtn,
-        window.clipBtn,
         window.status,
         window.folder,
     ]

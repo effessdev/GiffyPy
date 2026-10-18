@@ -176,6 +176,14 @@ def test_editor_playing_uses_qt_playback_state_enum(monkeypatch):
     assert win.editor.playing() is True
 
 
+def test_export_panel_has_no_copy_to_clipboard_action():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+
+    assert not hasattr(win, "clipBtn")
+    assert not hasattr(win, "copy_to_clipboard")
+
+
 def test_main_uses_real_widget_placeholder_and_requires_explicit_open(monkeypatch):
     app = QApplication.instance() or QApplication([])
     win = Main()

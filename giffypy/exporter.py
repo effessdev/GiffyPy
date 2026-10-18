@@ -5,7 +5,7 @@ from PySide6.QtCore import QProcess, QUrl, QRectF
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from .constants import FFMPEG, FPS_STEPS, CLIP_FMTS
+from .constants import FFMPEG, FPS_STEPS
 from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 
 
@@ -38,7 +38,6 @@ class ExportController:
         ready = bool(self.window.path and self.window.tl.segs) and not self.window.busy
         for b in (self.window.overBtn, self.window.numBtn, self.window.saveAsBtn):
             b.setEnabled(ready)
-        self.window.clipBtn.setEnabled(ready and self.window.fmt.currentText() in CLIP_FMTS)
 
     def export(self, mode="numbered"):
         """mode: 'overwrite' | 'numbered' | 'saveas'"""
@@ -69,18 +68,6 @@ class ExportController:
                     return
         self.window.out = out
         self.window.tmp = f"{os.path.splitext(out)[0]}.__tmp__{ext}"
-        self.window.clip_mode = False
-        self.start_export(self.ffmpeg_args(self.window.tmp))
-
-    def copy_to_clipboard(self):
-        """Export to a temp file behind the scenes, then put the result on the clipboard."""
-        if not (self.window.path and self.window.tl.segs and FFMPEG) or self.window.fmt.currentText() not in CLIP_FMTS:
-            return
-        ext = ".webp" if self.window.fmt.currentText() == "WebP" else ".gif"
-        self.window.tmp = os.path.join(tempfile.gettempdir(),
-                                       f"giffypy_clip_{os.path.splitext(os.path.basename(self.window.path))[0]}{ext}")
-        self.window.out = self.window.tmp
-        self.window.clip_mode = True
         self.start_export(self.ffmpeg_args(self.window.tmp))
 
     def ffmpeg_args(self, dst):
@@ -94,8 +81,7 @@ class ExportController:
         self.window.busy = True
         self.window.bar.setValue(0)
         self.refresh()
-        self.window.status.setText(
-            "Copying to clipboard…" if self.window.clip_mode else "Exporting…")
+        self.window.status.setText("Exporting…")
         self.window.proc = QProcess(self.window)
         self.window.proc.readyReadStandardOutput.connect(self.on_prog)
         self.window.proc.finished.connect(self.on_done)
@@ -115,27 +101,15 @@ class ExportController:
         self.window.busy = False
         self.refresh()
         if code == 0 and os.path.exists(self.window.tmp):
-            if self.window.clip_mode:
-                img = QImage(self.window.tmp)
-                os.remove(self.window.tmp)
-                if img.isNull():
-                    self.window.status.setText(
-                        "Couldn't copy to clipboard: exported file unreadable.")
-                else:
-                    QApplication.clipboard().setImage(img)
-                    self.window.bar.setValue(100)
-                    self.window.status.setText(
-                        f"✔ Copied {self.window.fmt.currentText()} to clipboard")
-            else:
-                if os.path.abspath(self.window.out) == os.path.abspath(self.window.path):
-                    self.window.player.setSource(QUrl())
-                try:
-                    os.replace(self.window.tmp, self.window.out)
-                    self.window.bar.setValue(100)
-                    self.window.status.setText(
-                        f"✔ Saved {os.path.basename(self.window.out)} ({os.path.getsize(self.window.out) / 1e6:.2f} MB)")
-                except OSError as ex:
-                    self.window.status.setText(f"Couldn't write output: {ex}")
+            if os.path.abspath(self.window.out) == os.path.abspath(self.window.path):
+                self.window.player.setSource(QUrl())
+            try:
+                os.replace(self.window.tmp, self.window.out)
+                self.window.bar.setValue(100)
+                self.window.status.setText(
+                    f"✔ Saved {os.path.basename(self.window.out)} ({os.path.getsize(self.window.out) / 1e6:.2f} MB)")
+            except OSError as ex:
+                self.window.status.setText(f"Couldn't write output: {ex}")
         else:
             if os.path.exists(self.window.tmp):
                 os.remove(self.window.tmp)

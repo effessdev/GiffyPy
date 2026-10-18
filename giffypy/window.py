@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
-from .constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER, CLIP_FMTS
+from .constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
 from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 from .crop import CropItem, View
 from .timeline import Timeline
@@ -69,7 +69,7 @@ class Main(QMainWindow):
         s.setWindowTitle("GiffyPy")
         s.setAcceptDrops(True)
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
-        s.clip_mode, s.busy = False, False
+        s.busy = False
         s.load_token = 0
         s.screen_recorder = ScreenRecorder()
         s.loader = MediaLoader(s)
@@ -481,9 +481,6 @@ class Main(QMainWindow):
 
     def export(s, mode="numbered"):
         s.exporter.export(mode)
-
-    def copy_to_clipboard(s):
-        s.exporter.copy_to_clipboard()
 
     def ffmpeg_args(s, dst):
         return s.exporter.ffmpeg_args(dst)
