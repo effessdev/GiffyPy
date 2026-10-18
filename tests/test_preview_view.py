@@ -213,6 +213,28 @@ def test_discard_and_start_over_resets_session_without_quitting_app():
     assert win.placeholder.isVisible()
 
 
+def test_timeline_reset_clears_all_clip_state():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.tl.segs = [(0.0, 8.0, 1.0), (8.0, 12.0, 1.5)]
+    win.tl.dur = 12.0
+    win.tl.cur = 1
+    win.tl.head = 9.5
+    win.tl.drag = ("move", 1, 10, [0.0, 8.0, 1.0])
+    win.tl.before = [(0.0, 8.0, 1.0)]
+    win.tl.pan = (5, 3.0)
+
+    win.tl.reset()
+
+    assert win.tl.segs == []
+    assert win.tl.dur == 0.0
+    assert win.tl.cur == 0
+    assert win.tl.head == 0.0
+    assert win.tl.drag is None
+    assert win.tl.before == []
+    assert win.tl.pan is None
+
+
 def test_discard_and_start_over_requires_confirmation(monkeypatch):
     import giffypy.ui.export_panel as export_panel
 

@@ -43,15 +43,7 @@ def reset_session(window):
         window.crop = None
 
     if hasattr(window, "tl"):
-        window.tl.segs = []
-        window.tl.dur = 0.0
-        window.tl.cur = 0
-        window.tl.head = 0.0
-        window.tl.drag = None
-        window.tl.before = []
-        window.tl.ox = 0.0
-        window.tl.z = 100.0
-        window.tl.sync()
+        window.tl.reset()
 
     window.setWindowTitle("GiffyPy")
     window.setup_placeholder()
