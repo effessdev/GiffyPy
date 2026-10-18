@@ -48,7 +48,7 @@ echo   [INFO] GiffyPy should now be searchable from the Start Menu.
 echo.
 echo   ------------------------------------------------------------
 echo.
-echo   [NOTE] This only created a shortcut — it does NOT copy GiffyPy.exe.
+echo   [NOTE] This only created a shortcut - it does NOT copy GiffyPy.exe.
 echo   [NOTE] Do not move or delete this folder, or GiffyPy.exe inside it,
 echo   [NOTE] or the shortcut will stop working.
 echo.
