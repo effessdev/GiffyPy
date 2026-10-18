@@ -53,9 +53,27 @@ class Main(QMainWindow):
         s.speed_before = None
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
         s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
+
+        s._init_media()
+        s._init_scene_and_view()
+        s._init_timeline()
+        s._init_timers()
+        s._build_export_panel()
+        s._build_toolbar()
+        s._apply_theme()
+        s._install_shortcuts()
+        s._install_event_filters()
+        s.refresh()
+        if not FFMPEG or not FFPROBE:
+            s.status.setText(
+                "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
+
+    def _init_media(s):
         s.player = QMediaPlayer()
         s.vitem = QGraphicsVideoItem()
         s.player.setVideoOutput(s.vitem)
+
+    def _init_scene_and_view(s):
         s.scene = QGraphicsScene()
         s.scene.addItem(s.vitem)
         s.pitem = QGraphicsPixmapItem()  # live-scrub proxy frame, layered over the video
@@ -84,6 +102,8 @@ class Main(QMainWindow):
         s.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.setup_placeholder()
+
+    def _init_timeline(s):
         s.tl = Timeline()
         s.tl.seek.connect(s.on_seek)
         s.tl.preview.connect(s.show_preview)
@@ -92,30 +112,44 @@ class Main(QMainWindow):
         s.tl.selected.connect(s.on_sel)
         s.player.durationChanged.connect(s.on_duration)
         s.player.errorOccurred.connect(s.on_error)
+
+    def _init_timers(s):
         s.timer = QTimer(s)
         s.timer.setInterval(15)
         s.timer.timeout.connect(s.tick)
         s.timer.start()
 
-        def btn(text, fn, tip="", checkable=False):
-            b = QPushButton(text)
-            b.setToolTip(tip)
-            b.setCheckable(checkable)
-            b.setFocusPolicy(Qt.NoFocus)
-            b.clicked.connect(fn)
-            return b
-        s.playBtn = btn("▶ Play", s.toggle_play, "Space")
-        s.cropBtn = btn("⛶ Crop", s.toggle_crop, "Show crop rectangle", True)
-        # speed control for the currently selected clip (inline in the toolbar)
+    def _button(s, text, fn, tip="", checkable=False):
+        b = QPushButton(text)
+        b.setToolTip(tip)
+        b.setCheckable(checkable)
+        b.setFocusPolicy(Qt.NoFocus)
+        b.clicked.connect(fn)
+        return b
+
+    def _range_slider(s, lo, hi, value, callback):
+        sl = QSlider(Qt.Horizontal)
+        sl.setRange(lo, hi)
+        sl.setValue(value)
+        sl.valueChanged.connect(callback)
+        return sl
+
+    def _export_button(s, text, name, tip, fn):
+        b = QPushButton(text)
+        b.setObjectName(name)
+        b.setMinimumHeight(40)
+        b.setToolTip(tip)
+        b.clicked.connect(fn)
+        return b
+
+    def _build_toolbar(s):
+        s.playBtn = s._button("▶ Play", s.toggle_play, "Space")
+        s.cropBtn = s._button("⛶ Crop", s.toggle_crop, "Show crop rectangle", True)
         s.speed = QSlider(Qt.Horizontal)
-        s.speed.setRange(1, 40)          # 0.1x .. 4.0x in 0.1 steps
-        s.speed.setValue(10)             # 1.0x
+        s.speed.setRange(1, 40)
+        s.speed.setValue(10)
         s.speed.setFocusPolicy(Qt.NoFocus)
-        # fixed (not min/max) so it can't be squeezed by the layout when the
-        # warning note next to it shows or hides
         s.speed.setFixedWidth(160)
-        # shown as a tooltip (on hover, and explicitly while pressed/dragged
-        # below) instead of an inline label, so it never shifts the layout
         s.SPEED_NOTE = ("⚠️ Preview plays clips at source speed. Speed changes "
                         "apply to the exported file only.")
         s.speed.setToolTip(s.SPEED_NOTE)
@@ -124,75 +158,90 @@ class Main(QMainWindow):
         s.speed.sliderReleased.connect(s.on_speed_release)
         s.speedVal = QLabel("1.0x")
         s.speedVal.setMinimumWidth(40)
-        bar = QHBoxLayout()
-        for b in (s.playBtn, btn("✂ Split", s.split, "S"),
-                  btn("🗑 Delete clip", s.delete, "Del"), btn(
-                      "↶ Undo", s.do_undo, "Ctrl+Z"), s.cropBtn,
-                  btn("Reset crop", lambda: s.crop and s.crop.reset()),
-                  btn("🔍−", lambda: s.tl.zoom_by(1 / 1.5), "Zoom out (Ctrl+-)"),
-                  btn("🔍+", lambda: s.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
-                  btn("Fit", lambda: s.tl.fit_view(), "Fit timeline (Ctrl+0)")):
-            bar.addWidget(b)
-        bar.addWidget(QLabel("Speed:"))
-        bar.addWidget(s.speed)
-        bar.addWidget(s.speedVal)
-        bar.addStretch()
+
+        toolbar = QHBoxLayout()
+        for b in (
+            s.playBtn,
+            s._button("✂ Split", s.split, "S"),
+            s._button("🗑 Delete clip", s.delete, "Del"),
+            s._button("↶ Undo", s.do_undo, "Ctrl+Z"),
+            s.cropBtn,
+            s._button("Reset crop", lambda: s.crop and s.crop.reset()),
+            s._button("🔍−", lambda: s.tl.zoom_by(1 / 1.5), "Zoom out (Ctrl+-)"),
+            s._button("🔍+", lambda: s.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
+            s._button("Fit", lambda: s.tl.fit_view(), "Fit timeline (Ctrl+0)"),
+        ):
+            toolbar.addWidget(b)
+        toolbar.addWidget(QLabel("Speed:"))
+        toolbar.addWidget(s.speed)
+        toolbar.addWidget(s.speedVal)
+        toolbar.addStretch()
+
         hint = QLabel(
             "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
             "Trackpad / wheel pan · Ctrl+Wheel zoom · middle-drag pan")
         hint.setStyleSheet("color:#888")
+
         left = QVBoxLayout()
         left.addWidget(s.view, 1)
-        left.addLayout(bar)
+        left.addLayout(toolbar)
         left.addWidget(s.tl)
         left.addWidget(hint)
 
-        # export panel
+        s.main_layout = left
+        root = QHBoxLayout()
+        root.addLayout(left, 1)
+        root.addWidget(s.export_panel)
+        c = QWidget()
+        c.setLayout(root)
+        s.setCentralWidget(c)
+
+    def _build_export_panel(s):
         s.fmt = QComboBox()
         s.fmt.addItems(["WebP", "GIF", "MP4", "WebM", "MOV", "MKV"])
         s.fmt.currentIndexChanged.connect(s.refresh)
 
-        def slider(lo, hi, v):
-            sl = QSlider(Qt.Horizontal)
-            sl.setRange(lo, hi)
-            sl.setValue(v)
-            sl.valueChanged.connect(s.refresh)
-            return sl
-        s.fps = slider(0, len(FPS_STEPS) - 1, FPS_STEPS.index(10))
-        s.scale = slider(5, 100, 60)
-        s.q = slider(1, 100, 75)
+        s.fps = s._range_slider(0, len(FPS_STEPS) - 1, FPS_STEPS.index(10), s.refresh)
+        s.scale = s._range_slider(5, 100, 60, s.refresh)
+        s.q = s._range_slider(1, 100, 75, s.refresh)
         s.fpsL, s.scL, s.qL, s.info = QLabel(), QLabel(), QLabel(), QLabel()
 
-        def exp_btn(text, name, tip, fn):
-            b = QPushButton(text)
-            b.setObjectName(name)
-            b.setMinimumHeight(40)
-            b.setToolTip(tip)
-            b.clicked.connect(fn)
-            return b
-        s.overBtn = exp_btn("Overwrite Existing File", "ow",
-                            "Save next to the source video, replacing any existing file (asks to confirm)",
-                            lambda: s.export("overwrite"))
-        s.numBtn = exp_btn("Save a Numbered Copy", "go",
-                           "Save next to the source video as \"name (edited N)\" without replacing anything",
-                           lambda: s.export("numbered"))
-        s.saveAsBtn = exp_btn("Save To…", "sa",
-                              "Choose where to save the file",
-                              lambda: s.export("saveas"))
-        s.clipBtn = exp_btn("Copy to Clipboard", "cp",
-                            "Export and copy to clipboard (only GIF / WebP support this)",
-                            s.copy_to_clipboard)
+        s.overBtn = s._export_button(
+            "Overwrite Existing File",
+            "ow",
+            "Save next to the source video, replacing any existing file (asks to confirm)",
+            lambda: s.export("overwrite"),
+        )
+        s.numBtn = s._export_button(
+            "Save a Numbered Copy",
+            "go",
+            "Save next to the source video as \"name (edited N)\" without replacing anything",
+            lambda: s.export("numbered"),
+        )
+        s.saveAsBtn = s._export_button(
+            "Save To…",
+            "sa",
+            "Choose where to save the file",
+            lambda: s.export("saveas"),
+        )
+        s.clipBtn = s._export_button(
+            "Copy to Clipboard",
+            "cp",
+            "Export and copy to clipboard (only GIF / WebP support this)",
+            s.copy_to_clipboard,
+        )
         s.bar = QProgressBar()
         s.bar.setRange(0, 100)
         s.status = QLabel()
         s.status.setWordWrap(True)
-        s.folder = btn("Open folder", lambda: s.path and QDesktopServices.openUrl(
+        s.folder = s._button("Open folder", lambda: s.path and QDesktopServices.openUrl(
             QUrl.fromLocalFile(os.path.dirname(s.path))))
         s.export_title = QLabel("<b>Export</b>")
         s.export_toggle = QPushButton("◀")
         s.export_toggle.setToolTip("Collapse export panel")
         s.export_toggle.setFixedWidth(28)
         s.export_toggle.clicked.connect(s.toggle_export_panel)
+
         right = QVBoxLayout()
         header = QHBoxLayout()
         header.addWidget(s.export_title)
@@ -204,36 +253,34 @@ class Main(QMainWindow):
         for w in s.export_controls:
             right.addWidget(w)
         right.addStretch()
+
         panel = QWidget()
         panel.setLayout(right)
         panel.setFixedWidth(250)
         s.export_panel = panel
         s.export_collapsed = False
-        root = QHBoxLayout()
-        root.addLayout(left, 1)
-        root.addWidget(panel)
-        c = QWidget()
-        c.setLayout(root)
-        s.setCentralWidget(c)
-        s.setStyleSheet("QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
-                        "QPushButton:disabled{background:#2b2d30;color:#555}"
-                        "QPushButton:checked{background:#3d8bfd}"
-                        "#ow,#go,#sa,#cp{color:white;font-weight:bold;font-size:13px}"
-                        "#ow{background:#d9822b} #go{background:#2ea043} #sa{background:#3d8bfd} #cp{background:#8957e5}"
-                        "#ow:disabled,#go:disabled,#sa:disabled,#cp:disabled{background:#2b2d30;color:#555}"
-                        "QGraphicsView{background:#111}")
+
+    def _apply_theme(s):
+        s.setStyleSheet(
+            "QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
+            "QPushButton:disabled{background:#2b2d30;color:#555}"
+            "QPushButton:checked{background:#3d8bfd}"
+            "#ow,#go,#sa,#cp{color:white;font-weight:bold;font-size:13px}"
+            "#ow{background:#d9822b} #go{background:#2ea043} #sa{background:#3d8bfd} #cp{background:#8957e5}"
+            "#ow:disabled,#go:disabled,#sa:disabled,#cp:disabled{background:#2b2d30;color:#555}"
+            "QGraphicsView{background:#111}"
+        )
+
+    def _install_shortcuts(s):
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
-                        ("Ctrl+=", lambda: s.tl.zoom_by(1.5)
-                         ), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
+                        ("Ctrl+=", lambda: s.tl.zoom_by(1.5)), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
                         ("Ctrl+-", lambda: s.tl.zoom_by(1 / 1.5)), ("Ctrl+0", lambda: s.tl.fit_view())):
             QShortcut(QKeySequence(key), s, activated=fn)
+
+    def _install_event_filters(s):
         # Left/Right arrow keys step frames via eventFilter (proxy while held, real frame on release)
         s.view.viewport().installEventFilter(s)
         QApplication.instance().installEventFilter(s)
-        s.refresh()
-        if not FFMPEG or not FFPROBE:
-            s.status.setText(
-                "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
 
     def toggle_export_panel(s):
         s.export_collapsed = not s.export_collapsed
