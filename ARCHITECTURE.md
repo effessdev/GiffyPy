@@ -20,19 +20,21 @@ conftest.py             pytest root config: puts the repo root on sys.path so te
 giffypy/
   constants.py          bundled-first ffmpeg/ffprobe discovery, tunables (PREVIEW_FPS, PREVIEW_H, MIN, ...)
   media.py              ffprobe wrapper: probe() -> (width, height, duration, fps)
+  loader.py             MediaLoader: background ffprobe load task and Qt signal bridge
+  preview.py            PreviewManager: proxy generation, scrub painting, frame hiding, preview sync
   crop.py               CropItem (interactive crop rectangle QGraphicsItem) + View (auto-fit QGraphicsView)
   timeline.py           Timeline widget: clip model, scrub/trim/reorder gestures, zoom/pan, painting
   export.py             pure function build_ffmpeg_args(): segments + crop + settings -> ffmpeg CLI args
-  window.py             Main (QMainWindow): orchestrates everything — loading, preview, playback, undo, export
+  window.py             Main (QMainWindow): thin orchestration layer for playback, state, and export
 ```
 
 Dependency direction is strictly acyclic:
 
 ```
-main.py → window.py → {media, export, crop, timeline} → constants.py
+main.py → window.py → {loader, preview, media, export, crop, timeline} → constants.py
 ```
 
-`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; all Qt widgets live in `crop.py`, `timeline.py`, and `window.py`. `window.py` is the only module that wires signals between components, and the class is organized into narrower lifecycle helpers (`_init_media`, `_init_scene_and_view`, `_init_timeline`, `_build_toolbar`, `_build_export_panel`) instead of a single monolithic constructor. The right-hand export panel is a collapsible sidebar: a compact toggle keeps the width to a narrow rail while the detailed controls are hidden, which preserves the main edit canvas without removing access to export actions.
+`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; the UI layer is split into `ui/*.py` and the window now delegates media loading and proxy preview work to `loader.py` and `preview.py`. `window.py` remains the orchestration layer, wiring signals and coordinating state without owning the whole data-loading or preview pipeline. The right-hand export panel is a collapsible sidebar: a compact toggle keeps the width to a narrow rail while the detailed controls are hidden, which preserves the main edit canvas without removing access to export actions.
 
 ## Core Data Model
 
