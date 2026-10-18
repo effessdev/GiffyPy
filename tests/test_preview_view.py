@@ -213,6 +213,34 @@ def test_discard_and_start_over_resets_session_without_quitting_app():
     assert win.placeholder.isVisible()
 
 
+def test_discard_and_start_over_requires_confirmation(monkeypatch):
+    import giffypy.ui.export_panel as export_panel
+
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    reset_calls = {"count": 0}
+
+    def fake_question(*args, **kwargs):
+        return 16384
+
+    def fake_reset(window):
+        reset_calls["count"] += 1
+
+    monkeypatch.setattr(export_panel.QMessageBox, "question", fake_question)
+    monkeypatch.setattr(export_panel, "reset_session", fake_reset)
+    win.discard_btn.click()
+
+    assert reset_calls["count"] == 1
+
+    def fake_no_question(*args, **kwargs):
+        return 65536
+
+    monkeypatch.setattr(export_panel.QMessageBox, "question", fake_no_question)
+    win.discard_btn.click()
+
+    assert reset_calls["count"] == 1
+
+
 def test_numbered_copy_button_disabled_for_screen_recordings(tmp_path):
     app = QApplication.instance() or QApplication([])
     win = Main()

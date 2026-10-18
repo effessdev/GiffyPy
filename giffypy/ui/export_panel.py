@@ -4,7 +4,7 @@ from PySide6.QtCore import QUrl, Qt
 
 from giffypy.session import reset_session
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QSlider, QVBoxLayout, QWidget
 
 from giffypy.constants import FPS_STEPS
 
@@ -24,6 +24,17 @@ def _export_button(text, name, tip, fn):
     b.setToolTip(tip)
     b.clicked.connect(fn)
     return b
+
+
+def confirm_reset(window):
+    if QMessageBox.question(
+        window,
+        "Discard and Start Over",
+        "Discard the current edit and return to the start screen? This cannot be undone.",
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+    ) == QMessageBox.Yes:
+        reset_session(window)
 
 
 def build_export_panel(window):
@@ -71,7 +82,7 @@ def build_export_panel(window):
         "QPushButton { background: #b42318; color: white; border: none; border-radius: 8px; }"
         "QPushButton:hover { background: #d92d20; }"
     )
-    window.discard_btn.clicked.connect(lambda: reset_session(window))
+    window.discard_btn.clicked.connect(lambda: confirm_reset(window))
     window.export_title = QLabel("<b>Export</b>")
     window.export_toggle = QPushButton("◀")
     window.export_toggle.setToolTip("Collapse export panel")
