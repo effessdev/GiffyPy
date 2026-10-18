@@ -134,5 +134,30 @@ if errorlevel 1 (
     exit /b %errorlevel%
 )
 
+set "SHORTCUT_SCRIPT_SRC=%~dp0scripts\create_shortcut.bat"
+set "DIST_DIR=%~dp0dist\GiffyPy"
+
+if not exist "%SHORTCUT_SCRIPT_SRC%" (
+    echo [ERROR] create_shortcut.bat not found at: %SHORTCUT_SCRIPT_SRC%
+    popd
+    exit /b 1
+)
+
+if not exist "%DIST_DIR%" (
+    echo [ERROR] Dist folder not found at: %DIST_DIR%
+    popd
+    exit /b 1
+)
+
+echo [INFO] Copying create_shortcut.bat to dist\GiffyPy...
+copy /Y "%SHORTCUT_SCRIPT_SRC%" "%DIST_DIR%\create_shortcut.bat" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to copy create_shortcut.bat to dist\GiffyPy.
+    popd
+    exit /b 1
+)
+
+echo [INFO] create_shortcut.bat copied successfully.
+
 popd
 endlocal
