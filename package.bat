@@ -128,7 +128,7 @@ if errorlevel 1 (
 )
 
 echo [INFO] Starting PyInstaller build...
-"%PYTHON_BIN%" -m PyInstaller --clean GiffyPy.spec
+"%PYTHON_BIN%" -m PyInstaller --clean --noconfirm GiffyPy.spec
 if errorlevel 1 (
     popd
     exit /b %errorlevel%
