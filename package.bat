@@ -15,6 +15,8 @@ echo [INFO] FFmpeg not found in PATH. Installing Gyan FFmpeg via winget...
 winget install --id Gyan.Dev.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
 if errorlevel 1 (
     echo [ERROR] Failed to install Gyan FFmpeg via winget.
+    popd
+    pause
     exit /b 1
 )
 
@@ -39,6 +41,8 @@ if not defined FFMPEG_BIN (
 :ffmpeg_ready
 if not defined FFMPEG_BIN (
     echo [ERROR] FFmpeg executable not found after installation.
+    popd
+    pause
     exit /b 1
 )
 
@@ -59,6 +63,7 @@ winget install --id Python.Python.3.12 --exact --source winget --accept-source-a
 if errorlevel 1 (
     echo [ERROR] Failed to install Python via winget.
     popd
+    pause
     exit /b 1
 )
 
@@ -89,6 +94,7 @@ if not defined PYTHON_BIN (
     echo [ERROR] Python executable not found after installation.
     echo [ERROR] You may need to restart this script in a new terminal so PATH changes take effect.
     popd
+    pause
     exit /b 1
 )
 
@@ -97,6 +103,7 @@ echo [INFO] Python executable found at: %PYTHON_BIN%
 if not exist "requirements.txt" (
     echo [ERROR] requirements.txt not found in %~dp0
     popd
+    pause
     exit /b 1
 )
 
@@ -105,6 +112,7 @@ echo [INFO] Installing dependencies from requirements.txt...
 if errorlevel 1 (
     echo [ERROR] Failed to upgrade pip.
     popd
+    pause
     exit /b 1
 )
 
@@ -112,6 +120,7 @@ if errorlevel 1 (
 if errorlevel 1 (
     echo [ERROR] Failed to install dependencies from requirements.txt.
     popd
+    pause
     exit /b 1
 )
 
@@ -123,6 +132,7 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo [ERROR] Failed to install PyInstaller.
         popd
+        pause
         exit /b 1
     )
 )
@@ -131,6 +141,7 @@ echo [INFO] Starting PyInstaller build...
 "%PYTHON_BIN%" -m PyInstaller --clean --noconfirm GiffyPy.spec
 if errorlevel 1 (
     popd
+    pause
     exit /b %errorlevel%
 )
 
@@ -141,12 +152,14 @@ set "EXE_PATH=%DIST_DIR%\GiffyPy.exe"
 if not exist "%SHORTCUT_SCRIPT_SRC%" (
     echo [ERROR] create_shortcut.bat not found at: %SHORTCUT_SCRIPT_SRC%
     popd
+    pause
     exit /b 1
 )
 
 if not exist "%DIST_DIR%" (
     echo [ERROR] Dist folder not found at: %DIST_DIR%
     popd
+    pause
     exit /b 1
 )
 
@@ -155,12 +168,14 @@ copy /Y "%SHORTCUT_SCRIPT_SRC%" "%DIST_DIR%\create_shortcut.bat" >nul
 if errorlevel 1 (
     echo [ERROR] Failed to copy create_shortcut.bat to dist\GiffyPy.
     popd
+    pause
     exit /b 1
 )
 
 if not exist "%EXE_PATH%" (
     echo [ERROR] Build finished but GiffyPy.exe was not found at: %EXE_PATH%
     popd
+    pause
     exit /b 1
 )
 
@@ -182,4 +197,5 @@ echo ========================================================
 echo.
 
 popd
+pause
 endlocal

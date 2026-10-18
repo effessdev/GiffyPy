@@ -10,6 +10,7 @@ set "SHORTCUT_PATH=%START_MENU%\%SHORTCUT_NAME%"
 if not exist "%EXE_PATH%" (
     echo [ERROR] GiffyPy.exe not found at: %EXE_PATH%
     popd
+    pause
     exit /b 1
 )
 
@@ -27,17 +28,33 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 if errorlevel 1 (
     echo [ERROR] Failed to create shortcut.
     popd
+    pause
     exit /b 1
 )
 
 if not exist "%SHORTCUT_PATH%" (
     echo [ERROR] Shortcut creation reported success but file not found.
     popd
+    pause
     exit /b 1
 )
 
-echo [INFO] Shortcut created successfully.
-echo [INFO] GiffyPy should now be searchable from the Start Menu.
+echo.
+echo.
+echo   ============================================================
+echo.
+echo   [INFO] Shortcut created successfully.
+echo   [INFO] GiffyPy should now be searchable from the Start Menu.
+echo.
+echo   ------------------------------------------------------------
+echo.
+echo   [NOTE] This only created a shortcut — it does NOT copy GiffyPy.exe.
+echo   [NOTE] Do not move or delete this folder, or GiffyPy.exe inside it,
+echo   [NOTE] or the shortcut will stop working.
+echo.
+echo   ============================================================
+echo.
 
 popd
+pause
 endlocal
