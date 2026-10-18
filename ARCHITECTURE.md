@@ -16,6 +16,7 @@ GiffyPy is a single-window desktop video editor built around two pillars: a **Qt
 
 ```
 main.py                 entry point: QApplication, icon, window creation, argv file loading
+conftest.py             pytest root config: puts the repo root on sys.path so tests import `giffypy`
 giffypy/
   constants.py          bundled-first ffmpeg/ffprobe discovery, tunables (PREVIEW_FPS, PREVIEW_H, MIN, ...)
   media.py              ffprobe wrapper: probe() -> (width, height, duration, fps)

@@ -1,11 +1,9 @@
+from giffypy.crop import View
+from PySide6.QtWidgets import QApplication, QGraphicsScene
+from PySide6.QtCore import QPoint, QRectF, Qt
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-from PySide6.QtCore import QPoint, QRectF, Qt
-from PySide6.QtWidgets import QApplication, QGraphicsScene
-
-from giffypy.crop import View
 
 
 class _MouseEvent:
@@ -22,6 +20,20 @@ class _MouseEvent:
 
     def buttons(self):
         return self._buttons
+
+    def accept(self):
+        pass
+
+    def ignore(self):
+        pass
+
+
+class _WheelEvent:
+    def __init__(self, delta):
+        self._delta = delta
+
+    def angleDelta(self):
+        return QPoint(0, self._delta)
 
     def accept(self):
         pass
@@ -54,6 +66,11 @@ def test_preview_view_pan_moves_scene_center():
     view = View(scene)
     view.resize(800, 600)
     view.fit_initial()
+
+    # Zoom in past "fit" so the scene exceeds the viewport and there is
+    # navigation space to pan into (panning a fully-fitted frame is a no-op).
+    for _ in range(10):
+        view.wheelEvent(_WheelEvent(120))
 
     before = view.mapToScene(view.viewport().rect().center())
     press = _MouseEvent(QPoint(400, 300), Qt.MiddleButton, Qt.MiddleButton)
