@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from uuid import uuid4
 
-from .constants import FFMPEG
+from .constants import FFMPEG, SCREEN_RECORDING_PREFIX
 
 
 class ScreenRecorder:
@@ -56,7 +56,7 @@ class ScreenRecorder:
         if capture_cursor is not None:
             self.capture_cursor = bool(capture_cursor)
 
-        path = os.path.join(self.output_dir, f"giffypy_record_{uuid4().hex}.mp4")
+        path = os.path.join(self.output_dir, f"{SCREEN_RECORDING_PREFIX}{uuid4().hex}.mp4")
         cmd = self.build_command(path, fps=self.fps, ffmpeg_binary=FFMPEG, capture_cursor=self.capture_cursor)
 
         startupinfo = None

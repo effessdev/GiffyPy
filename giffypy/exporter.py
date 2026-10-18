@@ -5,7 +5,7 @@ from PySide6.QtCore import QProcess, QUrl, QRectF
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from .constants import FFMPEG, FPS_STEPS
+from .constants import FFMPEG, FPS_STEPS, SCREEN_RECORDING_PREFIX
 from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 
 
@@ -25,6 +25,13 @@ class ExportController:
         k = self.window.scale.value() / 100
         return max(2, int(w * k) // 2 * 2), max(2, int(h * k) // 2 * 2)
 
+    def is_screen_recording_path(self):
+        path = getattr(self.window, "path", None)
+        if not path:
+            return False
+        name = os.path.basename(path)
+        return name.startswith(SCREEN_RECORDING_PREFIX) and name.lower().endswith(".mp4")
+
     def refresh(self):
         self.window.sync_speed()
         fps = FPS_STEPS[self.window.fps.value()]
@@ -36,8 +43,10 @@ class ExportController:
                                ("  (colors)" if self.window.fmt.currentText() == "GIF" else ""))
         self.window.info.setText(f"{tot:.1f}s → ~{int(tot * fps)} frames")
         ready = bool(self.window.path and self.window.tl.segs) and not self.window.busy
-        for b in (self.window.overBtn, self.window.numBtn, self.window.saveAsBtn):
-            b.setEnabled(ready)
+        self.window.overBtn.setEnabled(ready)
+        self.window.numBtn.setEnabled(ready and not self.is_screen_recording_path())
+        self.window.saveAsBtn.setEnabled(ready)
+        self.window.folder.setEnabled(ready and not self.is_screen_recording_path())
 
     def export(self, mode="numbered"):
         """mode: 'overwrite' | 'numbered' | 'saveas'"""

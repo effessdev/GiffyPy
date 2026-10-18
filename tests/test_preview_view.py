@@ -184,6 +184,17 @@ def test_export_panel_has_no_copy_to_clipboard_action():
     assert not hasattr(win, "copy_to_clipboard")
 
 
+def test_numbered_copy_button_disabled_for_screen_recordings(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.path = str(tmp_path / "giffypy_record_example.mp4")
+    win.tl.segs = [(0.0, 1.0, 1.0)]
+    win.busy = False
+    win.refresh()
+
+    assert win.numBtn.isEnabled() is False
+
+
 def test_main_uses_real_widget_placeholder_and_requires_explicit_open(monkeypatch):
     app = QApplication.instance() or QApplication([])
     win = Main()
