@@ -29,7 +29,7 @@ from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 from .constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, PREVIEW_H, MIN, FILTER, CLIP_FMTS
 from .media import probe
-from .export import EXT_MAP, build_ffmpeg_args
+from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 from .crop import CropItem, View
 from .timeline import Timeline
 
@@ -78,12 +78,12 @@ class Main(QMainWindow):
             "</div>"
         )
         s.scene.addItem(s.placeholder)
-        s.setup_placeholder()
         s.view = View(s.scene)
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
         s.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         s.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        s.setup_placeholder()
         s.tl = Timeline()
         s.tl.seek.connect(s.on_seek)
         s.tl.preview.connect(s.show_preview)
@@ -139,7 +139,7 @@ class Main(QMainWindow):
         bar.addStretch()
         hint = QLabel(
             "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
-            "Wheel scroll · Ctrl+Wheel zoom · middle-drag pan")
+            "Trackpad / wheel pan · Ctrl+Wheel zoom · middle-drag pan")
         hint.setStyleSheet("color:#888")
         left = QVBoxLayout()
         left.addWidget(s.view, 1)
@@ -261,6 +261,7 @@ class Main(QMainWindow):
     def setup_placeholder(s):
         s.scene.setSceneRect(0, 0, 800, 450)
         s.vitem.hide()
+        s.view.set_pan_enabled(False)
         s.placeholder.show()
         s.placeholder.setTextWidth(500)
         br = s.placeholder.boundingRect()
@@ -291,6 +292,7 @@ class Main(QMainWindow):
         s.status.setText(f"Can't read file: {ex}")
         s.busy = False
         s.path = None
+        s.view.set_pan_enabled(False)
 
     def _load_complete(s, token, path, W, H, dur, fps):
         if token != s.load_token:
@@ -298,6 +300,7 @@ class Main(QMainWindow):
         s.placeholder.hide()
         s.vitem.show()
         s.path, s.W, s.H, s.undo, s.proxied = path, W, H, [], False
+        s.view.set_pan_enabled(True)
         s.src_fps = fps
         s.tl.segs, s.tl.dur = [], dur
         s.scene.setSceneRect(0, 0, W, H)
@@ -309,7 +312,7 @@ class Main(QMainWindow):
         s.crop.setVisible(s.cropBtn.isChecked())
         s.player.setSource(QUrl.fromLocalFile(path))
         s.player.pause()
-        s.view.fitInView(s.scene.sceneRect(), Qt.KeepAspectRatio)
+        s.view.fit_initial()
         s.setWindowTitle(f"GiffyPy — {os.path.basename(path)}")
         s.status.setText("")
         s.bar.setValue(0)
@@ -343,21 +346,48 @@ class Main(QMainWindow):
                          "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p", proxy])
 
     # ---- live preview (low-res image sequence for instant scrubbing)
+    def _clear_prev_proc(s, proc=None):
+        if proc is None:
+            proc = s.prev_proc
+        if proc is not None and s.prev_proc is proc:
+            s.prev_proc = None
+
+    def _preview_proc_running(s):
+        proc = s.prev_proc
+        if proc is None:
+            return False
+        try:
+            return proc.state() != QProcess.NotRunning
+        except RuntimeError:
+            s._clear_prev_proc(proc)
+            return False
+
     def start_preview(s, path):
         """Generate a small JPEG sequence in the background: scrub = O(1) file read, no decoding."""
-        if s.prev_proc and s.prev_proc.state() != QProcess.NotRunning:
-            s.prev_proc.kill()
-            s.prev_proc.waitForFinished(2000)
+        proc = s.prev_proc
+        if proc is not None:
+            try:
+                if proc.state() != QProcess.NotRunning:
+                    proc.kill()
+                    proc.waitForFinished(2000)
+            except RuntimeError:
+                pass
+            finally:
+                s._clear_prev_proc(proc)
         old, s.prev_dir, s.prev_cache, s.pidx = s.prev_dir, None, {}, -1
         s.pitem.hide()
         if not FFMPEG:
             return
         s.prev_dir = tempfile.mkdtemp(prefix="giffypy_prev_")
         out = os.path.join(s.prev_dir, "f%06d.jpg")
-        s.prev_proc = QProcess(s)
-        s.prev_proc.finished.connect(
-            lambda *_, o=s.prev_proc: (o.deleteLater(),
-                                       s.status.setText("") if s.status.text() == "Building live preview…" else None))
+        proc = QProcess(s)
+        s.prev_proc = proc
+        proc.finished.connect(
+            lambda *_, o=proc: (
+                s._clear_prev_proc(o),
+                o.deleteLater(),
+                s.status.setText("") if s.status.text() == "Building live preview…" else None,
+            ))
         if old:
             QTimer.singleShot(1000, lambda: shutil.rmtree(
                 old, ignore_errors=True))
@@ -365,9 +395,9 @@ class Main(QMainWindow):
         # match the source frame rate 1:1 so every proxy frame is a real source frame
         s.prev_fps = min(
             240.0, s.src_fps) if s.src_fps > 0 else float(PREVIEW_FPS)
-        s.prev_proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
-                                   f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", f"{s.prev_fps:.9g}",
-                                   "-q:v", "4", out])
+        proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
+                            f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", f"{s.prev_fps:.9g}",
+                            "-q:v", "4", out])
 
     def show_preview(s, t):
         """Paint the proxy frame nearest source time t over the (slow) video item."""
@@ -547,8 +577,16 @@ class Main(QMainWindow):
             s.refresh()
 
     def closeEvent(s, e):
-        if s.prev_proc and s.prev_proc.state() != QProcess.NotRunning:
-            s.prev_proc.kill()
+        proc = s.prev_proc
+        if proc is not None:
+            try:
+                if proc.state() != QProcess.NotRunning:
+                    proc.kill()
+                    proc.waitForFinished(2000)
+            except RuntimeError:
+                pass
+            finally:
+                s._clear_prev_proc(proc)
         if s.prev_dir:
             shutil.rmtree(s.prev_dir, ignore_errors=True)
         super().closeEvent(e)
@@ -595,11 +633,7 @@ class Main(QMainWindow):
             if not out.lower().endswith(ext):
                 out += ext
         elif mode == "numbered":
-            if os.path.exists(out):
-                n = 1
-                while os.path.exists(f"{base} (edited {n}){ext}"):
-                    n += 1
-                out = f"{base} (edited {n}){ext}"
+            out = next_numbered_export_path(s.path, ext)
         elif mode == "overwrite":
             if os.path.exists(out):
                 msg = f"“{os.path.basename(out)}” already exists and will be replaced."

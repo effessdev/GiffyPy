@@ -104,5 +104,138 @@ class CropItem(QGraphicsItem):
 
 
 class View(QGraphicsView):
-    def resizeEvent(s, e): super().resizeEvent(
-        e); s.fitInView(s.sceneRect(), Qt.KeepAspectRatio)
+    """Preview canvas with bounded pan/zoom navigation.
+
+    The scene is treated as a finite world rather than an unchecked 2D plane:
+    panning and zooming are clamped to a finite navigation rectangle so the user
+    can explore the frame without drifting off to infinity.
+    """
+
+    def __init__(s, scene=None):
+        super().__init__(scene)
+        s._drag = None
+        s._pan_enabled = True
+        s.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        s.setResizeAnchor(QGraphicsView.AnchorViewCenter)
+        s.setDragMode(QGraphicsView.NoDrag)
+        s.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        s.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def set_pan_enabled(s, enabled):
+        s._pan_enabled = bool(enabled)
+        if not s._pan_enabled:
+            s._drag = None
+            s.setCursor(Qt.ArrowCursor)
+
+    def is_pan_enabled(s):
+        return s._pan_enabled
+
+    def bounds(s):
+        rect = s.sceneRect()
+        if rect.isNull() or rect.isEmpty():
+            return QRectF()
+        margin = max(rect.width(), rect.height()) * 0.25
+        return rect.adjusted(-margin, -margin, margin, margin)
+
+    def _clamp_view(s):
+        nav = s.bounds()
+        if nav.isNull():
+            return
+
+        center = s.mapToScene(s.viewport().rect().center())
+        x = min(max(center.x(), nav.left()), nav.right())
+        y = min(max(center.y(), nav.top()), nav.bottom())
+        s.centerOn(x, y)
+
+    def fit_initial(s):
+        if s.scene() and not s.sceneRect().isEmpty():
+            s.fitInView(s.sceneRect(), Qt.KeepAspectRatio)
+            s._clamp_view()
+
+    def resizeEvent(s, e):
+        super().resizeEvent(e)
+        s._clamp_view()
+
+    def _pan_scene_delta(s, delta):
+        if delta is None:
+            return
+        dx = float(delta.x())
+        dy = float(delta.y())
+        if dx == 0 and dy == 0:
+            return
+        center = s.mapToScene(s.viewport().rect().center()) - QPointF(dx, dy)
+        s.centerOn(center)
+        s._clamp_view()
+
+    def wheelEvent(s, ev):
+        if not s._pan_enabled:
+            ev.ignore()
+            return
+        if not s.scene() or s.sceneRect().isEmpty():
+            return
+        if ev.modifiers() & Qt.ControlModifier:
+            delta = ev.angleDelta().y()
+            if delta == 0:
+                ev.ignore()
+                return
+            factor = 1.12 if delta > 0 else 1 / 1.12
+            scale = s.transform().m11() * factor
+            if scale <= 0.05 or scale >= 25.0:
+                ev.accept()
+                return
+            s.scale(factor, factor)
+            s._clamp_view()
+            ev.accept()
+            return
+
+        pixel = ev.pixelDelta()
+        if not pixel.isNull():
+            s._pan_scene_delta(pixel)
+            ev.accept()
+            return
+
+        angle = ev.angleDelta()
+        if angle.x() == 0 and angle.y() == 0:
+            ev.ignore()
+            return
+        s._pan_scene_delta(QPointF(angle.x() * 0.5, angle.y() * 0.5))
+        ev.accept()
+
+    def mousePressEvent(s, ev):
+        if ev.button() == Qt.MiddleButton:
+            if not s._pan_enabled:
+                ev.ignore()
+                return
+            s._drag = ev.pos()
+            s.setCursor(Qt.ClosedHandCursor)
+            ev.accept()
+            return
+        super().mousePressEvent(ev)
+
+    def mouseMoveEvent(s, ev):
+        if not s._pan_enabled:
+            return
+        if s._drag is not None and ev.buttons() & Qt.MiddleButton:
+            pos = ev.pos()
+            last = s.mapToScene(s._drag)
+            current = s.mapToScene(pos)
+            delta = current - last
+            s._drag = pos
+            center = s.mapToScene(s.viewport().rect().center()) - delta
+            s.centerOn(center)
+            s._clamp_view()
+            ev.accept()
+            return
+        super().mouseMoveEvent(ev)
+
+    def mouseReleaseEvent(s, ev):
+        if ev.button() == Qt.MiddleButton:
+            if not s._pan_enabled:
+                s._drag = None
+                s.setCursor(Qt.ArrowCursor)
+                return
+            s._drag = None
+            s.setCursor(Qt.ArrowCursor)
+            ev.accept()
+            return
+        super().mouseReleaseEvent(ev)

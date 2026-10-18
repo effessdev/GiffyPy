@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
+import re
+
+
 EXT_MAP = {
     "WebP": ".webp",
     "GIF": ".gif",
@@ -22,6 +26,32 @@ EXT_MAP = {
     "MOV": ".mov",
     "MKV": ".mkv",
 }
+
+
+def next_numbered_export_path(path, ext):
+    """Return the next numbered export path for a source file.
+
+    Example: "clip.mp4" -> "clip (GiffyPy edit 01).gif".
+    Numbering ignores extension and starts from 01, so a GIF export will not
+    collide with an existing MP4 copy and vice versa.
+    """
+    folder, filename = os.path.split(path)
+    stem, _ = os.path.splitext(filename)
+    pattern = re.compile(
+        rf"^{re.escape(stem)} \(GiffyPy edit (\d+)\)(?:\.[^.]+)?$")
+    used = set()
+
+    if os.path.isdir(folder):
+        for entry in os.scandir(folder):
+            if entry.is_file():
+                match = pattern.match(entry.name)
+                if match:
+                    used.add(int(match.group(1)))
+
+    n = 1
+    while n in used:
+        n += 1
+    return os.path.join(folder, f"{stem} (GiffyPy edit {n:02d}){ext}")
 
 
 def build_ffmpeg_args(src, dst, fmt, segs, crop, src_size, out_size, fps, q):
