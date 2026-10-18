@@ -37,6 +37,7 @@ from .preview import PreviewManager
 from .editor import EditorController
 from .exporter import ExportController
 from .screen_recorder import ScreenRecorder
+from .session import reset_session as reset_session_controller
 
 
 class PlaceholderWidget(QWidget):
@@ -236,6 +237,9 @@ class Main(QMainWindow):
         s.export_toggle.setToolTip("Expand export panel" if s.export_collapsed else "Collapse export panel")
         s.export_panel.setFixedWidth(36 if s.export_collapsed else 250)
         s.export_panel.updateGeometry()
+
+    def reset_session(s):
+        reset_session_controller(s)
 
     # ---- loading
     def open(s):

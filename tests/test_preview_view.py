@@ -184,6 +184,35 @@ def test_export_panel_has_no_copy_to_clipboard_action():
     assert not hasattr(win, "copy_to_clipboard")
 
 
+def test_discard_and_start_over_resets_session_without_quitting_app():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.show()
+    win.path = r"C:\fake\clip.mp4"
+    win.W = 1920
+    win.H = 1080
+    win.undo = ["stale"]
+    win.tl.segs = [(0.0, 8.0, 1.0), (8.0, 12.0, 1.5)]
+    win.tl.cur = 1
+    win.tl.head = 9.5
+    win.tl.drag = ("move", 1, 10, [0.0, 8.0, 1.0])
+
+    assert hasattr(win, "discard_btn")
+    assert win.discard_btn.text() == "Discard and Start Over"
+
+    win.reset_session()
+
+    assert win.path is None
+    assert win.W == 0
+    assert win.H == 0
+    assert win.undo == []
+    assert win.tl.segs == []
+    assert win.tl.cur == 0
+    assert win.tl.head == 0.0
+    assert win.tl.drag is None
+    assert win.placeholder.isVisible()
+
+
 def test_numbered_copy_button_disabled_for_screen_recordings(tmp_path):
     app = QApplication.instance() or QApplication([])
     win = Main()
