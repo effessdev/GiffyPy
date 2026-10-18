@@ -1,8 +1,8 @@
 from giffypy.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
-from PySide6.QtCore import QPoint, QRectF, Qt, QProcess, QEvent
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QPoint, QRectF, Qt, QProcess, QEvent, QMimeData, QUrl
+from PySide6.QtGui import QCloseEvent, QDropEvent
 import os
 import pytest
 
@@ -172,6 +172,28 @@ def test_main_uses_real_widget_placeholder_and_requires_explicit_open(monkeypatc
     assert result is False
     assert opened["value"] is False
     assert win.placeholder.isVisible()
+
+
+def test_main_placeholder_accepts_files_dragged_onto_it(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    win.show()
+    win.setup_placeholder()
+    loaded = {}
+
+    def fake_load(path):
+        loaded["path"] = path
+
+    monkeypatch.setattr(win, "load", fake_load)
+
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(r"C:\\fake\\clip.mp4")])
+    event = QDropEvent(QPoint(10, 10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+
+    win.placeholder.dragEnterEvent(event)
+    win.placeholder.dropEvent(event)
+
+    assert os.path.normpath(loaded["path"]) == os.path.normpath(r"C:\fake\clip.mp4")
 
 
 def test_main_close_event_handles_deleted_preview_process():

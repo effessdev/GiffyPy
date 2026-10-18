@@ -37,6 +37,30 @@ from .editor import EditorController
 from .exporter import ExportController
 
 
+class PlaceholderWidget(QWidget):
+    def __init__(self, parent, window):
+        super().__init__(parent)
+        self.window = window
+        self.setAcceptDrops(True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(
+            "QWidget { background: transparent; border: none; }"
+            "QLabel { color: #d0d0d0; background: transparent; }"
+            "QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
+            "QPushButton:hover { background: #3c7ae9; }"
+        )
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if urls:
+            self.window.load(urls[0].toLocalFile())
+            event.acceptProposedAction()
+
+
 class Main(QMainWindow):
     def __init__(s):
         super().__init__()
@@ -89,14 +113,7 @@ class Main(QMainWindow):
         except Exception:  # older PySide without QGraphicsVideoItem.videoSink()
             s.sink = None
         s.view = View(s.scene)
-        s.placeholder = QWidget(s.view.viewport())
-        s.placeholder.setAttribute(Qt.WA_StyledBackground, True)
-        s.placeholder.setStyleSheet(
-            "QWidget { background: transparent; border: none; }"
-            "QLabel { color: #d0d0d0; background: transparent; }"
-            "QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
-            "QPushButton:hover { background: #3c7ae9; }"
-        )
+        s.placeholder = PlaceholderWidget(s.view.viewport(), s)
         s.placeholder_layout = QVBoxLayout(s.placeholder)
         s.placeholder_layout.setContentsMargins(28, 22, 28, 22)
         s.placeholder_layout.setSpacing(12)
