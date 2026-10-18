@@ -25,6 +25,7 @@ giffypy/
   crop.py               CropItem (interactive crop rectangle QGraphicsItem) + View (auto-fit QGraphicsView)
   timeline.py           Timeline widget: clip model, scrub/trim/reorder gestures, zoom/pan, painting
   export.py             pure function build_ffmpeg_args(): segments + crop + settings -> ffmpeg CLI args
+  screen_recorder.py    ScreenRecorder: desktop capture wrapper for 30 FPS ffmpeg desktop grabs with explicit keep/discard flow
   window.py             Main (QMainWindow): thin orchestration layer for playback, state, and export
 ```
 
@@ -34,7 +35,7 @@ Dependency direction is strictly acyclic:
 main.py → window.py → {loader, preview, media, export, crop, timeline} → constants.py
 ```
 
-`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; the UI layer is split into `ui/*.py` and the window now delegates media loading and proxy preview work to `loader.py` and `preview.py`. `window.py` remains the orchestration layer, wiring signals and coordinating state without owning the whole data-loading or preview pipeline. The right-hand export panel is a collapsible sidebar: a compact toggle keeps the width to a narrow rail while the detailed controls are hidden, which preserves the main edit canvas without removing access to export actions.
+`export.py` and `media.py` are side-effect-free builders/wrappers with no Qt imports; the UI layer is split into `ui/*.py` and the window now delegates media loading and proxy preview work to `loader.py` and `preview.py`. Screen capture was kept in a separate `screen_recorder.py` module so the window remains simple: it just starts/stops the recorder and then decides whether to load or discard the generated file. `window.py` remains the orchestration layer, wiring signals and coordinating state without owning the whole data-loading or preview pipeline. The right-hand export panel is a collapsible sidebar: a compact toggle keeps the width to a narrow rail while the detailed controls are hidden, which preserves the main edit canvas without removing access to export actions.
 
 ## Core Data Model
 
@@ -50,7 +51,7 @@ Coordinates come in two flavors and the `Timeline` translates between them const
 ## Import & Playback Pipeline
 
 1. **Probe** (`media.py`): `load(path)` dispatches ffprobe to a background thread so the GUI stays responsive while it gathers dimensions, duration, and `avg_frame_rate` (fraction parsing, with fallbacks). The worker posts the result back to the Qt thread via `QTimer.singleShot` before the scene is finalized.
-2. **Scene setup** (`window.py`): a `QGraphicsScene` layers three items — `QGraphicsVideoItem` (z=0, real decoder output), a `QGraphicsPixmapItem` proxy overlay (z=0.5), and the `CropItem` (z=1) — inside a `View` that re-fits on resize. When no media is loaded, a real `QWidget` placeholder sits centered over the viewport with a drag-and-drop instruction and an explicit "Select video" button; drag-and-drop still works on the `QMainWindow` and the button triggers the same open-file dialog.
+2. **Scene setup** (`window.py`): a `QGraphicsScene` layers three items — `QGraphicsVideoItem` (z=0, real decoder output), a `QGraphicsPixmapItem` proxy overlay (z=0.5), and the `CropItem` (z=1) — inside a `View` that re-fits on resize. When no media is loaded, a real `QWidget` placeholder sits centered over the viewport with drag-and-drop instructions and explicit "Open file" / "Record screen" buttons; drag-and-drop still works on the `QMainWindow` and the file button triggers the same open-file dialog. The screen-recording button starts a dedicated desktop capture process at 30 FPS and prompts the user to either keep the result as a video or discard it after stopping.
 3. **Proxy sequence** (`window.start_preview`): immediately on load, a background `QProcess` runs ffmpeg to emit a low-resolution JPEG sequence (`f%06d.jpg`, height ≤ `PREVIEW_H`) at the _source frame rate_ (1:1 frame mapping) into a fresh temp dir. Scrubbing is then an O(1) file read instead of a video seek — this is what makes scrubbing feel instant.
 4. **Scrub preview** (`window.show_preview`): time → frame index → cached `QPixmap` (LRU-ish dict, cleared past 120 entries) painted over the video item while paused.
 5. **Commit / real frame**: on gesture release, a true `QMediaPlayer.setPosition()` seek runs; `QVideoSink.videoFrameChanged` fires `on_real_frame`, which hides the proxy overlay so the full-resolution decoded frame shows. If the sink API is unavailable, a 300 ms timer hides the proxy instead.

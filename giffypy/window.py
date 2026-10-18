@@ -35,6 +35,7 @@ from .loader import MediaLoader
 from .preview import PreviewManager
 from .editor import EditorController
 from .exporter import ExportController
+from .screen_recorder import ScreenRecorder
 
 
 class PlaceholderWidget(QWidget):
@@ -69,6 +70,7 @@ class Main(QMainWindow):
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
         s.clip_mode, s.busy = False, False
         s.load_token = 0
+        s.screen_recorder = ScreenRecorder()
         s.loader = MediaLoader(s)
         s.loader.finished.connect(s._load_complete)
         s.loader.failed.connect(s._load_failed)
@@ -125,15 +127,27 @@ class Main(QMainWindow):
         title = QLabel("Drag & Drop Video Here")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
-        action = QPushButton("Select video")
-        action.setFocusPolicy(Qt.NoFocus)
-        action.clicked.connect(s.open)
-        action.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
-                            "QPushButton:hover { background: #3c7ae9; }")
+        s.open_file_btn = QPushButton("Open file")
+        s.open_file_btn.setFocusPolicy(Qt.NoFocus)
+        s.open_file_btn.clicked.connect(s.open)
+        s.open_file_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
+                                     "QPushButton:hover { background: #3c7ae9; }")
+
+        s.record_screen_btn = QPushButton("Record screen")
+        s.record_screen_btn.setFocusPolicy(Qt.NoFocus)
+        s.record_screen_btn.clicked.connect(s.toggle_screen_recording)
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #404040; color: white; border: none; }"
+                                         "QPushButton:hover { background: #4e4e4e; }")
+
+        actions = QHBoxLayout()
+        actions.setSpacing(12)
+        actions.setAlignment(Qt.AlignCenter)
+        actions.addWidget(s.open_file_btn)
+        actions.addWidget(s.record_screen_btn)
 
         s.placeholder_layout.addWidget(icon)
         s.placeholder_layout.addWidget(title)
-        s.placeholder_layout.addWidget(action)
+        s.placeholder_layout.addLayout(actions)
         s.placeholder.hide()
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
@@ -217,6 +231,49 @@ class Main(QMainWindow):
         p, _ = QFileDialog.getOpenFileName(s, "Open video", "", FILTER)
         if p:
             s.load(p)
+
+    def start_screen_recording(s):
+        if not FFMPEG:
+            s.status.setText("⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
+            return
+        if s.screen_recorder.is_recording:
+            return
+
+        path = s.screen_recorder.start()
+        s.record_screen_btn.setText("Stop recording")
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #b42318; color: white; border: none; }"
+                                         "QPushButton:hover { background: #d92d20; }")
+        s.status.setText(f"Recording whole display at 30 FPS → {os.path.basename(path)}")
+
+    def stop_screen_recording(s):
+        if not s.screen_recorder.is_recording:
+            return
+
+        path = s.screen_recorder.stop()
+        s.record_screen_btn.setText("Record screen")
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #404040; color: white; border: none; }"
+                                         "QPushButton:hover { background: #4e4e4e; }")
+
+        msg = QMessageBox(s)
+        msg.setWindowTitle("Recording finished")
+        msg.setText("Keep this recording and load it into GiffyPy?")
+        msg.setInformativeText(f"Saved to: {path}")
+        msg.setStandardButtons(QMessageBox.Save | QMessageBox.Discard)
+        msg.setDefaultButton(QMessageBox.Save)
+        reply = msg.exec()
+
+        if reply == QMessageBox.Save:
+            s.status.setText(f"Loaded screen recording: {os.path.basename(path)}")
+            s.load(path)
+        else:
+            s.screen_recorder.discard()
+            s.status.setText("Screen recording discarded.")
+
+    def toggle_screen_recording(s):
+        if s.screen_recorder.is_recording:
+            s.stop_screen_recording()
+        else:
+            s.start_screen_recording()
 
     def dragEnterEvent(s, e):
         if e.mimeData().hasUrls():
