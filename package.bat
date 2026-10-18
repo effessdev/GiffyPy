@@ -1,1 +1,138 @@
-pyinstaller --clean GiffyPy.spec
+@echo off
+setlocal enabledelayedexpansion
+pushd "%~dp0"
+
+set "FFMPEG_BIN="
+where ffmpeg >nul 2>nul
+if not errorlevel 1 (
+    for /f "delims=" %%I in ('where ffmpeg 2^>nul') do (
+        set "FFMPEG_BIN=%%~fI"
+        goto ffmpeg_ready
+    )
+)
+
+echo [INFO] FFmpeg not found in PATH. Installing Gyan FFmpeg via winget...
+winget install --id Gyan.Dev.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
+if errorlevel 1 (
+    echo [ERROR] Failed to install Gyan FFmpeg via winget.
+    exit /b 1
+)
+
+for %%P in (
+    "%ProgramFiles%\Gyan\Gyan Dev\FFmpeg\bin\ffmpeg.exe"
+    "%ProgramFiles(x86)%\Gyan\Gyan Dev\FFmpeg\bin\ffmpeg.exe"
+    "C:\Program Files\Gyan\Gyan Dev\FFmpeg\bin\ffmpeg.exe"
+) do (
+    if exist "%%~P" set "FFMPEG_BIN=%%~fP"
+)
+
+if not defined FFMPEG_BIN (
+    for /f "delims=" %%I in ('where /R "%ProgramFiles%" ffmpeg.exe 2^>nul') do (
+        echo %%~fI | findstr /I "Gyan\FFmpeg" >nul
+        if not errorlevel 1 (
+            set "FFMPEG_BIN=%%~fI"
+            goto ffmpeg_ready
+        )
+    )
+)
+
+:ffmpeg_ready
+if not defined FFMPEG_BIN (
+    echo [ERROR] FFmpeg executable not found after installation.
+    exit /b 1
+)
+
+echo [INFO] FFmpeg executable found at: %FFMPEG_BIN%
+echo [INFO] You can find the FFmpeg executable here: %FFMPEG_BIN%
+
+set "PYTHON_BIN="
+where python >nul 2>nul
+if not errorlevel 1 (
+    for /f "delims=" %%I in ('where python 2^>nul') do (
+        set "PYTHON_BIN=%%~fI"
+        goto python_ready
+    )
+)
+
+echo [INFO] Python not found in PATH. Installing Python via winget...
+winget install --id Python.Python.3.12 --exact --source winget --accept-source-agreements --accept-package-agreements
+if errorlevel 1 (
+    echo [ERROR] Failed to install Python via winget.
+    popd
+    exit /b 1
+)
+
+for %%P in (
+    "%LocalAppData%\Programs\Python\Python312\python.exe"
+    "%ProgramFiles%\Python312\python.exe"
+    "%ProgramFiles(x86)%\Python312\python.exe"
+) do (
+    if exist "%%~P" set "PYTHON_BIN=%%~fP"
+)
+
+if not defined PYTHON_BIN (
+    for /f "delims=" %%I in ('where /R "%LocalAppData%\Programs\Python" python.exe 2^>nul') do (
+        set "PYTHON_BIN=%%~fI"
+        goto python_ready
+    )
+)
+
+if not defined PYTHON_BIN (
+    for /f "delims=" %%I in ('where /R "%ProgramFiles%" python.exe 2^>nul') do (
+        set "PYTHON_BIN=%%~fI"
+        goto python_ready
+    )
+)
+
+:python_ready
+if not defined PYTHON_BIN (
+    echo [ERROR] Python executable not found after installation.
+    echo [ERROR] You may need to restart this script in a new terminal so PATH changes take effect.
+    popd
+    exit /b 1
+)
+
+echo [INFO] Python executable found at: %PYTHON_BIN%
+
+if not exist "requirements.txt" (
+    echo [ERROR] requirements.txt not found in %~dp0
+    popd
+    exit /b 1
+)
+
+echo [INFO] Installing dependencies from requirements.txt...
+"%PYTHON_BIN%" -m pip install --upgrade pip
+if errorlevel 1 (
+    echo [ERROR] Failed to upgrade pip.
+    popd
+    exit /b 1
+)
+
+"%PYTHON_BIN%" -m pip install -r requirements.txt
+if errorlevel 1 (
+    echo [ERROR] Failed to install dependencies from requirements.txt.
+    popd
+    exit /b 1
+)
+
+echo [INFO] Checking for PyInstaller...
+"%PYTHON_BIN%" -m pip show pyinstaller >nul 2>nul
+if errorlevel 1 (
+    echo [INFO] PyInstaller not found. Installing...
+    "%PYTHON_BIN%" -m pip install pyinstaller
+    if errorlevel 1 (
+        echo [ERROR] Failed to install PyInstaller.
+        popd
+        exit /b 1
+    )
+)
+
+echo [INFO] Starting PyInstaller build...
+"%PYTHON_BIN%" -m PyInstaller --clean GiffyPy.spec
+if errorlevel 1 (
+    popd
+    exit /b %errorlevel%
+)
+
+popd
+endlocal
