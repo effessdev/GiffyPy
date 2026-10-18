@@ -12,11 +12,11 @@ It's three steps:
 
 1. **Record** — click once to start recording your screen, click again to stop.
 2. **Edit** — trim it down to the good part, crop out anything you don't want to show, reorder or combine clips, and adjust the speed if needed.
-3. **Export** — save it as an animated image, ready to paste into your README or docs.
+3. **Export** — save it as an animated image (or optionally video), ready to paste into your README or docs.
 
 No separate recording app, no converting files, no fiddling with export settings. You stay focused on your product, not on video editing.
 
-![Importing a file](./assets/import-demo.webp)
+<img width="1458" height="738" alt="giffypy-sr" src="https://github.com/user-attachments/assets/26e65f20-342a-4159-af86-5254e0c957a9" />
 
 ## Fast, from the moment you click it
 
@@ -28,27 +28,19 @@ Click **Record screen**, do the thing you want to show off, then click again to 
 
 There's also an optional toggle to show your mouse cursor in the recording (off by default, so your demos stay clean).
 
-![Recording the screen](./assets/screen-record-demo.webp)
-
 ## Editing
 
 ### Trimming and reordering
 
 Drag the handles on either end of a clip to trim it down to just the part you want. If you recorded more than you need, split it into pieces and drag them around to reorder — handy for cutting out a mistake in the middle of a recording.
 
-![Trimming and reordering clips](./assets/trim-reorder-demo.webp)
-
 ### Adjusting speed
 
 Select a clip and use the speed slider to slow it down or speed it up — useful for skipping over a slow loading screen, or slowing down a step people might miss.
 
-![Adjusting clip speed](./assets/speed-demo.webp)
-
 ### Cropping
 
 Draw a crop box over the part of the screen you actually want to show, with guides to help you frame it nicely. Great for cutting out your desktop clutter and keeping the focus on your app window.
-
-![Cropping a video](./assets/crop-demo.webp)
 
 ### Undo
 
@@ -59,8 +51,6 @@ Made a mistake? Every edit can be undone from the toolbar.
 When you're happy with it, export. GiffyPy defaults to **WebP** — a lightweight animated image format that looks great and loads fast, which is exactly what you want for a README. GIF, MP4, and a few other formats are also available if you need them.
 
 You can save over the original, save it as a new numbered copy, or choose a new name and location — whichever fits your workflow.
-
-![Exporting a clip](./assets/export-demo.webp)
 
 ## Starting Over
 
