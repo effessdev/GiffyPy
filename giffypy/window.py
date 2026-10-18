@@ -20,7 +20,7 @@ import tempfile
 import copy
 from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
 from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
-from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
                                QGraphicsScene, QHBoxLayout, QLabel, QMainWindow,
                                QMessageBox, QProgressBar, QPushButton, QSizePolicy, QSlider,
                                QToolTip, QVBoxLayout, QWidget)
@@ -149,9 +149,16 @@ class Main(QMainWindow):
         actions.addWidget(s.open_file_btn, 1)
         actions.addWidget(s.record_screen_btn, 1)
 
+        s.capture_cursor_checkbox = QCheckBox("Capture cursor")
+        s.capture_cursor_checkbox.setChecked(False)
+        s.capture_cursor_checkbox.setFocusPolicy(Qt.NoFocus)
+        s.capture_cursor_checkbox.toggled.connect(s.on_capture_cursor_changed)
+
         s.placeholder_layout.addWidget(icon)
         s.placeholder_layout.addWidget(title)
         s.placeholder_layout.addLayout(actions)
+        s.placeholder_layout.addSpacing(4)
+        s.placeholder_layout.addWidget(s.capture_cursor_checkbox, 0, Qt.AlignCenter)
         s.placeholder.hide()
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
@@ -236,6 +243,9 @@ class Main(QMainWindow):
         if p:
             s.load(p)
 
+    def on_capture_cursor_changed(s, checked):
+        s.screen_recorder.capture_cursor = bool(checked)
+
     def start_screen_recording(s):
         if not FFMPEG:
             s.status.setText("⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
@@ -243,6 +253,7 @@ class Main(QMainWindow):
         if s.screen_recorder.is_recording:
             return
 
+        s.screen_recorder.capture_cursor = s.capture_cursor_checkbox.isChecked()
         path = s.screen_recorder.start()
         if not path:
             s.record_screen_btn.setText("Record screen")
@@ -305,7 +316,9 @@ class Main(QMainWindow):
         s.scene.setSceneRect(0, 0, 800, 450)
         s.vitem.hide()
         s.view.set_pan_enabled(False)
-        s.placeholder.setFixedSize(520, 180)
+        s.placeholder.adjustSize()
+        s.placeholder.setMinimumWidth(420)
+        s.placeholder.setMaximumWidth(520)
         vp = s.view.viewport()
         s.placeholder.move((vp.width() - s.placeholder.width()) // 2, (vp.height() - s.placeholder.height()) // 2)
         s.placeholder.show()

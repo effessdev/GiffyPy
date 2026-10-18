@@ -15,15 +15,16 @@ class ScreenRecorder:
         self.output_dir = output_dir or tempfile.gettempdir()
         self.process = None
         self.output_path = None
+        self.capture_cursor = False
 
     @property
     def is_recording(self):
         return self.process is not None and self.process.poll() is None
 
     @staticmethod
-    def build_command(path, fps=30, ffmpeg_binary=None):
+    def build_command(path, fps=30, ffmpeg_binary=None, capture_cursor=False):
         ffmpeg_binary = ffmpeg_binary or FFMPEG or "ffmpeg"
-        return [
+        cmd = [
             ffmpeg_binary,
             "-y",
             "-f",
@@ -32,6 +33,10 @@ class ScreenRecorder:
             str(int(fps)),
             "-i",
             "desktop",
+            "-draw_mouse",
+            "1" if capture_cursor else "0",
+        ]
+        cmd.extend([
             "-c:v",
             "libx264",
             "-pix_fmt",
@@ -41,14 +46,18 @@ class ScreenRecorder:
             "-crf",
             "18",
             path,
-        ]
+        ])
+        return cmd
 
-    def start(self):
+    def start(self, capture_cursor=None):
         if self.is_recording:
             return self.output_path
 
+        if capture_cursor is not None:
+            self.capture_cursor = bool(capture_cursor)
+
         path = os.path.join(self.output_dir, f"giffypy_record_{uuid4().hex}.mp4")
-        cmd = self.build_command(path, fps=self.fps, ffmpeg_binary=FFMPEG)
+        cmd = self.build_command(path, fps=self.fps, ffmpeg_binary=FFMPEG, capture_cursor=self.capture_cursor)
 
         startupinfo = None
         creationflags = 0

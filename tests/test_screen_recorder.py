@@ -11,8 +11,17 @@ def test_screen_recorder_build_command_uses_desktop_capture_at_30fps(monkeypatch
 
     assert cmd[:5] == ["ffmpeg", "-y", "-f", "gdigrab", "-framerate"]
     assert "desktop" in cmd
+    assert cmd[cmd.index("-draw_mouse"):cmd.index("-draw_mouse") + 2] == ["-draw_mouse", "0"]
     assert cmd[cmd.index("-pix_fmt"):cmd.index("-pix_fmt") + 2] == ["-pix_fmt", "yuv420p"]
     assert cmd[-1].endswith("recording.mp4")
+
+
+def test_screen_recorder_build_command_can_enable_cursor_capture(monkeypatch):
+    monkeypatch.setattr("giffypy.screen_recorder.FFMPEG", "ffmpeg")
+
+    cmd = ScreenRecorder.build_command(r"C:\\tmp\\recording.mp4", fps=30, capture_cursor=True)
+
+    assert cmd[cmd.index("-draw_mouse"):cmd.index("-draw_mouse") + 2] == ["-draw_mouse", "1"]
 
 
 def test_screen_recorder_start_rejects_immediate_failure(monkeypatch):
