@@ -1,7 +1,10 @@
 from giffypy.crop import View
+from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtCore import QPoint, QRectF, Qt, QProcess
+from PySide6.QtGui import QCloseEvent
 import os
+import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -145,3 +148,21 @@ def test_preview_view_zoom_disabled_when_no_file_selected():
     view.wheelEvent(_WheelEvent(120))
 
     assert view.transform().m11() == initial_scale
+
+
+def test_main_close_event_handles_deleted_preview_process():
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+
+    class StaleProcess(QProcess):
+        def state(self):
+            raise RuntimeError("libshiboken: Internal C++ object (PySide6.QtCore.QProcess) already deleted.")
+
+    win.prev_proc = StaleProcess(win)
+
+    try:
+        win.closeEvent(QCloseEvent())
+    except RuntimeError as exc:
+        pytest.fail(f"closeEvent should ignore stale preview process: {exc}")
+
+    assert win.prev_proc is None

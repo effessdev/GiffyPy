@@ -346,21 +346,48 @@ class Main(QMainWindow):
                          "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p", proxy])
 
     # ---- live preview (low-res image sequence for instant scrubbing)
+    def _clear_prev_proc(s, proc=None):
+        if proc is None:
+            proc = s.prev_proc
+        if proc is not None and s.prev_proc is proc:
+            s.prev_proc = None
+
+    def _preview_proc_running(s):
+        proc = s.prev_proc
+        if proc is None:
+            return False
+        try:
+            return proc.state() != QProcess.NotRunning
+        except RuntimeError:
+            s._clear_prev_proc(proc)
+            return False
+
     def start_preview(s, path):
         """Generate a small JPEG sequence in the background: scrub = O(1) file read, no decoding."""
-        if s.prev_proc and s.prev_proc.state() != QProcess.NotRunning:
-            s.prev_proc.kill()
-            s.prev_proc.waitForFinished(2000)
+        proc = s.prev_proc
+        if proc is not None:
+            try:
+                if proc.state() != QProcess.NotRunning:
+                    proc.kill()
+                    proc.waitForFinished(2000)
+            except RuntimeError:
+                pass
+            finally:
+                s._clear_prev_proc(proc)
         old, s.prev_dir, s.prev_cache, s.pidx = s.prev_dir, None, {}, -1
         s.pitem.hide()
         if not FFMPEG:
             return
         s.prev_dir = tempfile.mkdtemp(prefix="giffypy_prev_")
         out = os.path.join(s.prev_dir, "f%06d.jpg")
-        s.prev_proc = QProcess(s)
-        s.prev_proc.finished.connect(
-            lambda *_, o=s.prev_proc: (o.deleteLater(),
-                                       s.status.setText("") if s.status.text() == "Building live preview…" else None))
+        proc = QProcess(s)
+        s.prev_proc = proc
+        proc.finished.connect(
+            lambda *_, o=proc: (
+                s._clear_prev_proc(o),
+                o.deleteLater(),
+                s.status.setText("") if s.status.text() == "Building live preview…" else None,
+            ))
         if old:
             QTimer.singleShot(1000, lambda: shutil.rmtree(
                 old, ignore_errors=True))
@@ -368,9 +395,9 @@ class Main(QMainWindow):
         # match the source frame rate 1:1 so every proxy frame is a real source frame
         s.prev_fps = min(
             240.0, s.src_fps) if s.src_fps > 0 else float(PREVIEW_FPS)
-        s.prev_proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
-                                   f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", f"{s.prev_fps:.9g}",
-                                   "-q:v", "4", out])
+        proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
+                            f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", f"{s.prev_fps:.9g}",
+                            "-q:v", "4", out])
 
     def show_preview(s, t):
         """Paint the proxy frame nearest source time t over the (slow) video item."""
@@ -550,8 +577,16 @@ class Main(QMainWindow):
             s.refresh()
 
     def closeEvent(s, e):
-        if s.prev_proc and s.prev_proc.state() != QProcess.NotRunning:
-            s.prev_proc.kill()
+        proc = s.prev_proc
+        if proc is not None:
+            try:
+                if proc.state() != QProcess.NotRunning:
+                    proc.kill()
+                    proc.waitForFinished(2000)
+            except RuntimeError:
+                pass
+            finally:
+                s._clear_prev_proc(proc)
         if s.prev_dir:
             shutil.rmtree(s.prev_dir, ignore_errors=True)
         super().closeEvent(e)
