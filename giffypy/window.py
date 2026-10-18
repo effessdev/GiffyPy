@@ -72,6 +72,7 @@ class Main(QMainWindow):
         s.path, s.W, s.H, s.undo, s.crop, s.proxied = None, 0, 0, [], None, False
         s.busy = False
         s.load_token = 0
+        s.recording_stopping = False
         s.screen_recorder = ScreenRecorder()
         s.loader = MediaLoader(s)
         s.loader.finished.connect(s._load_complete)
@@ -272,13 +273,26 @@ class Main(QMainWindow):
         s.status.setText(f"Recording whole display at 30 FPS → {os.path.basename(path)}")
 
     def stop_screen_recording(s):
-        if not s.screen_recorder.is_recording:
+        if not s.screen_recorder.is_recording or s.screen_recorder is None:
+            return
+        if getattr(s, "recording_stopping", False):
             return
 
-        path = s.screen_recorder.stop()
-        s.record_screen_btn.setText("Record screen")
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                         "QPushButton:hover { background: #4e4e4e; }")
+        s.recording_stopping = True
+        s.record_screen_btn.setEnabled(False)
+        s.record_screen_btn.setText("Stopping...")
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #7a1f1f; color: white; border: none; opacity: 0.9; }"
+                                         "QPushButton:hover { background: #8e2727; }")
+        QApplication.processEvents()
+
+        try:
+            path = s.screen_recorder.stop()
+        finally:
+            s.recording_stopping = False
+            s.record_screen_btn.setEnabled(True)
+            s.record_screen_btn.setText("Record screen")
+            s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
+                                             "QPushButton:hover { background: #4e4e4e; }")
 
         if not path:
             s.status.setText("Recording ended without producing a file.")

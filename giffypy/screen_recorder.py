@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import tempfile
+import time
 from uuid import uuid4
 
 from .constants import FFMPEG, SCREEN_RECORDING_PREFIX
@@ -74,7 +75,11 @@ class ScreenRecorder:
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
+                # stdin must be a pipe (not DEVNULL) so stop() can send ffmpeg
+                # a graceful "q" on Windows. Killing ffmpeg via CTRL_BREAK_EVENT
+                # alone frequently truncates the MP4 before the moov atom is
+                # written, leaving an unplayable file.
+                stdin=subprocess.PIPE,
                 startupinfo=startupinfo,
                 creationflags=creationflags,
             )
@@ -90,6 +95,50 @@ class ScreenRecorder:
 
         return self.output_path
 
+    def _wait_for_valid_output(self, path, timeout=4.0):
+        if not path:
+            return False
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if not os.path.exists(path):
+                time.sleep(0.2)
+                continue
+            try:
+                from .media import probe
+                probe(path)
+                return True
+            except (FileNotFoundError, OSError, ValueError, subprocess.SubprocessError):
+                time.sleep(0.2)
+        return False
+
+    def _graceful_stop(self, proc, timeout):
+        """Ask ffmpeg to quit cleanly so it finalizes the output file.
+
+        Writing 'q' to stdin is ffmpeg's documented graceful-shutdown path
+        and is the most reliable way to get a valid MP4 out of it on
+        Windows. CTRL_BREAK_EVENT is kept as a fallback for builds/consoles
+        where stdin signaling doesn't work.
+        """
+        try:
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.write(b"q")
+                proc.stdin.flush()
+                proc.wait(timeout=timeout)
+                return True
+        except (BrokenPipeError, OSError, ValueError, subprocess.TimeoutExpired):
+            pass
+
+        try:
+            if os.name == "nt":
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                proc.send_signal(signal.SIGINT)
+            proc.wait(timeout=timeout)
+            return True
+        except (AttributeError, ValueError, OSError, PermissionError, subprocess.TimeoutExpired):
+            return False
+
     def stop(self):
         path = self.output_path
         proc = self.process
@@ -99,35 +148,58 @@ class ScreenRecorder:
             self.output_path = None
             return path
 
+        if not self._graceful_stop(proc, timeout=10):
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
         try:
-            if os.name == "nt":
-                proc.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                proc.send_signal(signal.SIGINT)
-            proc.wait(timeout=10)
-        except (AttributeError, ValueError):
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=5)
-        finally:
-            self.process = None
-            self.output_path = None
-        return path
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.close()
+        except (OSError, ValueError):
+            pass
+
+        self.process = None
+        self.output_path = None
+
+        if path and self._wait_for_valid_output(path):
+            return path
+        return None
 
     def discard(self):
         path = self.output_path
+        proc = self.process
         self.output_path = None
         self.process = None
+
+        if proc and proc.poll() is None:
+            # Must stop ffmpeg before touching the file: on Windows the
+            # file is locked while ffmpeg holds it open, and os.remove()
+            # would raise PermissionError. This also prevents leaving an
+            # orphaned ffmpeg process running in the background.
+            if not self._graceful_stop(proc, timeout=5):
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
+            try:
+                if proc.stdin and not proc.stdin.closed:
+                    proc.stdin.close()
+            except (OSError, ValueError):
+                pass
+
         if path and os.path.exists(path):
-            os.remove(path)
+            try:
+                os.remove(path)
+            except OSError:
+                pass
         return path
+    

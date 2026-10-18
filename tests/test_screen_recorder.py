@@ -54,13 +54,14 @@ def test_screen_recorder_stop_clears_state_on_success(monkeypatch):
     recorder = ScreenRecorder()
     recorder.process = DummyProcess()
     recorder.output_path = "C:/tmp/recording.mp4"
+    monkeypatch.setattr(recorder, "_wait_for_valid_output", lambda *args, **kwargs: True)
 
     assert recorder.stop() == "C:/tmp/recording.mp4"
     assert recorder.process is None
     assert recorder.output_path is None
 
 
-def test_screen_recorder_stop_keeps_state_while_signal_is_in_flight():
+def test_screen_recorder_stop_keeps_state_while_signal_is_in_flight(monkeypatch):
     class DummyProcess:
         def __init__(self, recorder):
             self.recorder = recorder
@@ -79,10 +80,70 @@ def test_screen_recorder_stop_keeps_state_while_signal_is_in_flight():
     proc = DummyProcess(recorder)
     recorder.process = proc
     recorder.output_path = "C:/tmp/recording.mp4"
+    monkeypatch.setattr(recorder, "_wait_for_valid_output", lambda *args, **kwargs: True)
 
     assert recorder.stop() == "C:/tmp/recording.mp4"
     assert recorder.process is None
     assert recorder.output_path is None
+
+
+def test_screen_recorder_stop_falls_back_to_terminate_when_console_signal_is_unsupported(monkeypatch):
+    class DummyProcess:
+        def __init__(self):
+            self.terminated = False
+
+        def poll(self):
+            return None
+
+        def send_signal(self, *_):
+            raise OSError("console signal not available")
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout=None):
+            return None
+
+    recorder = ScreenRecorder()
+    proc = DummyProcess()
+    recorder.process = proc
+    recorder.output_path = "C:/tmp/recording.mp4"
+    monkeypatch.setattr(recorder, "_wait_for_valid_output", lambda *args, **kwargs: True)
+
+    assert recorder.stop() == "C:/tmp/recording.mp4"
+    assert proc.terminated is True
+    assert recorder.process is None
+    assert recorder.output_path is None
+
+
+def test_screen_recorder_stop_retries_until_probe_sees_a_valid_stream(monkeypatch, tmp_path):
+    path = tmp_path / "recording.mp4"
+    path.write_bytes(b"not empty yet")
+    calls = {"count": 0}
+
+    class DummyProcess:
+        def poll(self):
+            return None
+
+        def send_signal(self, *_):
+            pass
+
+        def wait(self, timeout=None):
+            return None
+
+    def fake_probe(*_args, **_kwargs):
+        calls["count"] += 1
+        if calls["count"] < 2:
+            raise ValueError("No video streams found")
+        return 1280, 720, 3.0, 30.0
+
+    monkeypatch.setattr("giffypy.media.probe", fake_probe)
+
+    recorder = ScreenRecorder()
+    recorder.process = DummyProcess()
+    recorder.output_path = str(path)
+
+    assert recorder.stop() == str(path)
 
 
 def test_probe_raises_clear_error_when_no_video_streams(monkeypatch):
