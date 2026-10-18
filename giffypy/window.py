@@ -271,13 +271,18 @@ class Main(QMainWindow):
 
         msg = QMessageBox(s)
         msg.setWindowTitle("Recording finished")
-        msg.setText("Keep this recording and load it into GiffyPy?")
-        msg.setInformativeText(f"Saved to: {path}")
-        msg.setStandardButtons(QMessageBox.Save | QMessageBox.Discard)
-        msg.setDefaultButton(QMessageBox.Save)
-        reply = msg.exec()
+        msg.setText(f"Screen recoding was saved to:\n\n{path}")
+        load_btn = msg.addButton("Open Screen Recording", QMessageBox.AcceptRole)
+        discard_btn = msg.addButton("Discard", QMessageBox.DestructiveRole)
+        discard_btn.setStyleSheet(
+            "QPushButton { background-color: #c62828; color: white; border: 1px solid #b71c1c; border-radius: 6px; padding: 6px 12px; }"
+            "QPushButton:hover { background-color: #d32f2f; }"
+            "QPushButton:pressed { background-color: #b71c1c; }"
+        )
+        msg.setDefaultButton(load_btn)
+        msg.exec()
 
-        if reply == QMessageBox.Save:
+        if msg.clickedButton() is load_btn:
             s.status.setText(f"Loaded screen recording: {os.path.basename(path)}")
             s.load(path)
         else:
