@@ -22,7 +22,8 @@ from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
 from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
                                QGraphicsScene, QHBoxLayout, QLabel, QMainWindow,
-                               QMessageBox, QProgressBar, QPushButton, QSlider, QToolTip, QVBoxLayout, QWidget)
+                               QMessageBox, QProgressBar, QPushButton, QSizePolicy, QSlider,
+                               QToolTip, QVBoxLayout, QWidget)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
@@ -129,21 +130,24 @@ class Main(QMainWindow):
         title.setStyleSheet("font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
         s.open_file_btn = QPushButton("Open file")
         s.open_file_btn.setFocusPolicy(Qt.NoFocus)
+        s.open_file_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         s.open_file_btn.clicked.connect(s.open)
-        s.open_file_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
+        s.open_file_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
                                      "QPushButton:hover { background: #3c7ae9; }")
 
         s.record_screen_btn = QPushButton("Record screen")
         s.record_screen_btn.setFocusPolicy(Qt.NoFocus)
+        s.record_screen_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         s.record_screen_btn.clicked.connect(s.toggle_screen_recording)
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #404040; color: white; border: none; }"
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
                                          "QPushButton:hover { background: #4e4e4e; }")
 
         actions = QHBoxLayout()
+        actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(12)
         actions.setAlignment(Qt.AlignCenter)
-        actions.addWidget(s.open_file_btn)
-        actions.addWidget(s.record_screen_btn)
+        actions.addWidget(s.open_file_btn, 1)
+        actions.addWidget(s.record_screen_btn, 1)
 
         s.placeholder_layout.addWidget(icon)
         s.placeholder_layout.addWidget(title)
@@ -240,8 +244,15 @@ class Main(QMainWindow):
             return
 
         path = s.screen_recorder.start()
+        if not path:
+            s.record_screen_btn.setText("Record screen")
+            s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
+                                             "QPushButton:hover { background: #4e4e4e; }")
+            s.status.setText("⚠ Failed to start screen capture. Check that ffmpeg is available and try again.")
+            return
+
         s.record_screen_btn.setText("Stop recording")
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #b42318; color: white; border: none; }"
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #b42318; color: white; border: none; }"
                                          "QPushButton:hover { background: #d92d20; }")
         s.status.setText(f"Recording whole display at 30 FPS → {os.path.basename(path)}")
 
@@ -251,8 +262,12 @@ class Main(QMainWindow):
 
         path = s.screen_recorder.stop()
         s.record_screen_btn.setText("Record screen")
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #404040; color: white; border: none; }"
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
                                          "QPushButton:hover { background: #4e4e4e; }")
+
+        if not path:
+            s.status.setText("Recording ended without producing a file.")
+            return
 
         msg = QMessageBox(s)
         msg.setWindowTitle("Recording finished")
@@ -285,7 +300,7 @@ class Main(QMainWindow):
         s.scene.setSceneRect(0, 0, 800, 450)
         s.vitem.hide()
         s.view.set_pan_enabled(False)
-        s.placeholder.setFixedSize(360, 180)
+        s.placeholder.setFixedSize(520, 180)
         vp = s.view.viewport()
         s.placeholder.move((vp.width() - s.placeholder.width()) // 2, (vp.height() - s.placeholder.height()) // 2)
         s.placeholder.show()
