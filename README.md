@@ -2,7 +2,7 @@
 
 Record your screen, edit it, and drop it straight into your README. GiffyPy is a simple desktop app for turning a screen recording into a clean, lightweight animated clip, built specifically for showing off your product.
 
-> Every animated image in this README was itself made with GiffyPy. 🙂
+> Every animated image in this README was recorded, edited, and exported entirely with GiffyPy — start to finish, no other tools involved. 🙂
 
 ![GiffyPy overview](./assets/overview-demo.webp)
 
@@ -17,6 +17,10 @@ It's three steps:
 No separate recording app, no converting files, no fiddling with export settings. You stay focused on your product, not on video editing.
 
 ![Importing a file](./assets/import-demo.webp)
+
+## Fast, from the moment you click it
+
+GiffyPy opens in under a second, and opening a video file is just as quick. There's no splash screen, no waiting for things to load — you click the icon and you're already recording or editing. For a tool meant to be used in the middle of writing docs, that speed is the point: it should never be the reason you put off making a quick demo clip.
 
 ## Recording your screen
 
