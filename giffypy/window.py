@@ -32,6 +32,7 @@ from .media import probe
 from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 from .crop import CropItem, View
 from .timeline import Timeline
+from .ui import apply_theme, build_export_panel, build_toolbar
 
 
 class _LoadSignals(QObject):
@@ -143,133 +144,13 @@ class Main(QMainWindow):
         return b
 
     def _build_toolbar(s):
-        s.playBtn = s._button("▶ Play", s.toggle_play, "Space")
-        s.cropBtn = s._button("⛶ Crop", s.toggle_crop, "Show crop rectangle", True)
-        s.speed = QSlider(Qt.Horizontal)
-        s.speed.setRange(1, 40)
-        s.speed.setValue(10)
-        s.speed.setFocusPolicy(Qt.NoFocus)
-        s.speed.setFixedWidth(160)
-        s.SPEED_NOTE = ("⚠️ Preview plays clips at source speed. Speed changes "
-                        "apply to the exported file only.")
-        s.speed.setToolTip(s.SPEED_NOTE)
-        s.speed.valueChanged.connect(s.on_speed)
-        s.speed.sliderPressed.connect(s.on_speed_press)
-        s.speed.sliderReleased.connect(s.on_speed_release)
-        s.speedVal = QLabel("1.0x")
-        s.speedVal.setMinimumWidth(40)
-
-        toolbar = QHBoxLayout()
-        for b in (
-            s.playBtn,
-            s._button("✂ Split", s.split, "S"),
-            s._button("🗑 Delete clip", s.delete, "Del"),
-            s._button("↶ Undo", s.do_undo, "Ctrl+Z"),
-            s.cropBtn,
-            s._button("Reset crop", lambda: s.crop and s.crop.reset()),
-            s._button("🔍−", lambda: s.tl.zoom_by(1 / 1.5), "Zoom out (Ctrl+-)"),
-            s._button("🔍+", lambda: s.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
-            s._button("Fit", lambda: s.tl.fit_view(), "Fit timeline (Ctrl+0)"),
-        ):
-            toolbar.addWidget(b)
-        toolbar.addWidget(QLabel("Speed:"))
-        toolbar.addWidget(s.speed)
-        toolbar.addWidget(s.speedVal)
-        toolbar.addStretch()
-
-        hint = QLabel(
-            "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
-            "Trackpad / wheel pan · Ctrl+Wheel zoom · middle-drag pan")
-        hint.setStyleSheet("color:#888")
-
-        left = QVBoxLayout()
-        left.addWidget(s.view, 1)
-        left.addLayout(toolbar)
-        left.addWidget(s.tl)
-        left.addWidget(hint)
-
-        s.main_layout = left
-        root = QHBoxLayout()
-        root.addLayout(left, 1)
-        root.addWidget(s.export_panel)
-        c = QWidget()
-        c.setLayout(root)
-        s.setCentralWidget(c)
+        build_toolbar(s)
 
     def _build_export_panel(s):
-        s.fmt = QComboBox()
-        s.fmt.addItems(["WebP", "GIF", "MP4", "WebM", "MOV", "MKV"])
-        s.fmt.currentIndexChanged.connect(s.refresh)
-
-        s.fps = s._range_slider(0, len(FPS_STEPS) - 1, FPS_STEPS.index(10), s.refresh)
-        s.scale = s._range_slider(5, 100, 60, s.refresh)
-        s.q = s._range_slider(1, 100, 75, s.refresh)
-        s.fpsL, s.scL, s.qL, s.info = QLabel(), QLabel(), QLabel(), QLabel()
-
-        s.overBtn = s._export_button(
-            "Overwrite Existing File",
-            "ow",
-            "Save next to the source video, replacing any existing file (asks to confirm)",
-            lambda: s.export("overwrite"),
-        )
-        s.numBtn = s._export_button(
-            "Save a Numbered Copy",
-            "go",
-            "Save next to the source video as \"name (edited N)\" without replacing anything",
-            lambda: s.export("numbered"),
-        )
-        s.saveAsBtn = s._export_button(
-            "Save To…",
-            "sa",
-            "Choose where to save the file",
-            lambda: s.export("saveas"),
-        )
-        s.clipBtn = s._export_button(
-            "Copy to Clipboard",
-            "cp",
-            "Export and copy to clipboard (only GIF / WebP support this)",
-            s.copy_to_clipboard,
-        )
-        s.bar = QProgressBar()
-        s.bar.setRange(0, 100)
-        s.status = QLabel()
-        s.status.setWordWrap(True)
-        s.folder = s._button("Open folder", lambda: s.path and QDesktopServices.openUrl(
-            QUrl.fromLocalFile(os.path.dirname(s.path))))
-        s.export_title = QLabel("<b>Export</b>")
-        s.export_toggle = QPushButton("◀")
-        s.export_toggle.setToolTip("Collapse export panel")
-        s.export_toggle.setFixedWidth(28)
-        s.export_toggle.clicked.connect(s.toggle_export_panel)
-
-        right = QVBoxLayout()
-        header = QHBoxLayout()
-        header.addWidget(s.export_title)
-        header.addStretch()
-        header.addWidget(s.export_toggle)
-        right.addLayout(header)
-        s.export_controls = [s.fmt, s.fpsL, s.fps, s.scL, s.scale, s.qL, s.q, s.info,
-                            s.overBtn, s.numBtn, s.saveAsBtn, s.clipBtn, s.status, s.folder]
-        for w in s.export_controls:
-            right.addWidget(w)
-        right.addStretch()
-
-        panel = QWidget()
-        panel.setLayout(right)
-        panel.setFixedWidth(250)
-        s.export_panel = panel
-        s.export_collapsed = False
+        build_export_panel(s)
 
     def _apply_theme(s):
-        s.setStyleSheet(
-            "QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
-            "QPushButton:disabled{background:#2b2d30;color:#555}"
-            "QPushButton:checked{background:#3d8bfd}"
-            "#ow,#go,#sa,#cp{color:white;font-weight:bold;font-size:13px}"
-            "#ow{background:#d9822b} #go{background:#2ea043} #sa{background:#3d8bfd} #cp{background:#8957e5}"
-            "#ow:disabled,#go:disabled,#sa:disabled,#cp:disabled{background:#2b2d30;color:#555}"
-            "QGraphicsView{background:#111}"
-        )
+        apply_theme(s)
 
     def _install_shortcuts(s):
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
