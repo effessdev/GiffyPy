@@ -20,7 +20,7 @@ No separate recording app, no converting files, no fiddling with export settings
 
 ## Fast, from the moment you click it
 
-GiffyPy opens in under a second, and opening a video file is just as quick. There's no splash screen, no waiting for things to load — you click the icon and you're already recording or editing. For a tool meant to be used in the middle of writing docs, that speed is the point: it should never be the reason you put off making a quick demo clip.
+GiffyPy opens in under a second, and opening a video file is even quicker. There's no splash screen, no waiting for things to load — you click the icon and you're already recording or editing. For a tool meant to be used in the middle of writing docs, that speed is the point: it should never be the reason you put off making a quick demo clip.
 
 ## Recording your screen
 
