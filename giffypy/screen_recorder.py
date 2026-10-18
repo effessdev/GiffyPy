@@ -93,10 +93,10 @@ class ScreenRecorder:
     def stop(self):
         path = self.output_path
         proc = self.process
-        self.process = None
-        self.output_path = None
 
         if not proc or proc.poll() is not None:
+            self.process = None
+            self.output_path = None
             return path
 
         try:
@@ -119,6 +119,9 @@ class ScreenRecorder:
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=5)
+        finally:
+            self.process = None
+            self.output_path = None
         return path
 
     def discard(self):

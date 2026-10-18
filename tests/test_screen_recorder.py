@@ -60,6 +60,31 @@ def test_screen_recorder_stop_clears_state_on_success(monkeypatch):
     assert recorder.output_path is None
 
 
+def test_screen_recorder_stop_keeps_state_while_signal_is_in_flight():
+    class DummyProcess:
+        def __init__(self, recorder):
+            self.recorder = recorder
+
+        def poll(self):
+            return None
+
+        def send_signal(self, *_):
+            assert self.recorder.process is self
+
+        def wait(self, timeout=None):
+            assert self.recorder.process is self
+            return None
+
+    recorder = ScreenRecorder()
+    proc = DummyProcess(recorder)
+    recorder.process = proc
+    recorder.output_path = "C:/tmp/recording.mp4"
+
+    assert recorder.stop() == "C:/tmp/recording.mp4"
+    assert recorder.process is None
+    assert recorder.output_path is None
+
+
 def test_probe_raises_clear_error_when_no_video_streams(monkeypatch):
     monkeypatch.setattr("giffypy.media.FFPROBE", "ffprobe")
 
