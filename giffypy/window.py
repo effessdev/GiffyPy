@@ -139,7 +139,7 @@ class Main(QMainWindow):
         bar.addStretch()
         hint = QLabel(
             "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
-            "Wheel scroll · Ctrl+Wheel zoom · middle-drag pan")
+            "Trackpad / wheel pan · Ctrl+Wheel zoom · middle-drag pan")
         hint.setStyleSheet("color:#888")
         left = QVBoxLayout()
         left.addWidget(s.view, 1)

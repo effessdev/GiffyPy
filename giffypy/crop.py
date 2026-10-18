@@ -156,23 +156,49 @@ class View(QGraphicsView):
         super().resizeEvent(e)
         s._clamp_view()
 
+    def _pan_scene_delta(s, delta):
+        if delta is None:
+            return
+        dx = float(delta.x())
+        dy = float(delta.y())
+        if dx == 0 and dy == 0:
+            return
+        center = s.mapToScene(s.viewport().rect().center()) - QPointF(dx, dy)
+        s.centerOn(center)
+        s._clamp_view()
+
     def wheelEvent(s, ev):
         if not s._pan_enabled:
             ev.ignore()
             return
         if not s.scene() or s.sceneRect().isEmpty():
             return
-        delta = ev.angleDelta().y()
-        if delta == 0:
-            ev.ignore()
-            return
-        factor = 1.12 if delta > 0 else 1 / 1.12
-        scale = s.transform().m11() * factor
-        if scale <= 0.05 or scale >= 25.0:
+        if ev.modifiers() & Qt.ControlModifier:
+            delta = ev.angleDelta().y()
+            if delta == 0:
+                ev.ignore()
+                return
+            factor = 1.12 if delta > 0 else 1 / 1.12
+            scale = s.transform().m11() * factor
+            if scale <= 0.05 or scale >= 25.0:
+                ev.accept()
+                return
+            s.scale(factor, factor)
+            s._clamp_view()
             ev.accept()
             return
-        s.scale(factor, factor)
-        s._clamp_view()
+
+        pixel = ev.pixelDelta()
+        if not pixel.isNull():
+            s._pan_scene_delta(pixel)
+            ev.accept()
+            return
+
+        angle = ev.angleDelta()
+        if angle.x() == 0 and angle.y() == 0:
+            ev.ignore()
+            return
+        s._pan_scene_delta(QPointF(angle.x() * 0.5, angle.y() * 0.5))
         ev.accept()
 
     def mousePressEvent(s, ev):
