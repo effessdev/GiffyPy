@@ -1,122 +1,82 @@
 # GiffyPy
 
-A simple and fast video editor made **specifically for editing screen recordings for your project README**. Export to animated WebP, GIF, MP4, WebM, MOV, or MKV. Opens in under a second. Instant timeline scrubbing (no loading screens, ever).
+Record your screen, edit it, and drop it straight into your README. GiffyPy is a simple desktop app for turning a screen recording into a clean, lightweight animated clip, built specifically for showing off your product.
 
-<img width="1287" alt="image" src="https://github.com/user-attachments/assets/1e386c9f-665a-4cfe-bec7-9bc16aed9114" />
+> Every animated image in this README was itself made with GiffyPy. 🙂
 
-## Goal of the editor
+![GiffyPy overview](./assets/overview-demo.webp)
 
-Make editing screen recordings of your project for your README extremely fast and effortless, so you can focus on the project instead of marketing.
+## How it works
 
-## Features
+It's three steps:
 
-### ✂️ Interactive Visual Cropping
+1. **Record** — click once to start recording your screen, click again to stop.
+2. **Edit** — trim it down to the good part, crop out anything you don't want to show, reorder or combine clips, and adjust the speed if needed.
+3. **Export** — save it as an animated image, ready to paste into your README or docs.
 
-- Resize and move an overlay crop rectangle.
-- Use the rule-of-thirds visual guides to help position the crop.
+No separate recording app, no converting files, no fiddling with export settings. You stay focused on your product, not on video editing.
 
-### 🎬 Non-Destructive Multi-Clip Timeline
+![Importing a file](./assets/import-demo.webp)
 
-Edit and arrange video segments without destructively modifying the original video.
+## Recording your screen
 
-- **Split clips:** Split video segments anywhere using the `S` key.
-- **Reorder clips:** Drag and drop clips to reorder them on the fly.
-- **Trim clips:** Drag clip edges to trim start and end points with live preview.
+Click **Record screen**, do the thing you want to show off, then click again to stop. You'll be asked whether to keep the recording or throw it away — if you keep it, it drops straight onto the timeline, ready to edit immediately. No saving a file and reopening it.
 
-### 📤 Flexible Export Options
+There's also an optional toggle to show your mouse cursor in the recording (off by default, so your demos stay clean).
 
-Export to **WebP, GIF, MP4, WebM, MOV, or MKV**.
+![Recording the screen](./assets/screen-record-demo.webp)
 
-Customize your exports with these settings:
+## Editing
 
-- **Framerate:** Adjust from 0.5 to 60 FPS.
-- **Scaling / Resolution:** Set the output resolution as a percentage.
-- **Quality:** Adjust output quality settings.
-- **GIF palette and dithering:** Use automatic palette generation with dither controls for GIFs.
+### Trimming and reordering
 
-### 📂 Four Ways to Save
+Drag the handles on either end of a clip to trim it down to just the part you want. If you recorded more than you need, split it into pieces and drag them around to reorder — handy for cutting out a mistake in the middle of a recording.
 
-Each save option has its own button.
+![Trimming and reordering clips](./assets/trim-reorder-demo.webp)
 
-| Option | Description |
-|---|---|
-| **Overwrite Existing File** | Replaces the file next to the source video, with a confirmation prompt first. |
-| **Save a Numbered Copy** | Saves next to the source video as `name (edited N)` without replacing anything. |
-| **Save To…** | Opens a file dialog so you can pick the location and file name. |
-| **Copy to Clipboard** | Exports and copies the result to the clipboard. Available for GIF and WebP only. |
+### Adjusting speed
 
-### 🧭 Fast Timeline Navigation & Controls
+Select a clip and use the speed slider to slow it down or speed it up — useful for skipping over a slow loading screen, or slowing down a step people might miss.
 
-Navigate and edit complex timelines with these controls:
+![Adjusting clip speed](./assets/speed-demo.webp)
 
-- **Scroll:** Scroll through the timeline.
-- **Zoom:** Use `Ctrl + Wheel` to zoom, or two finger zoom while using trackpad.
-- **Pan:** Use `Middle-click drag` to pan through the timeline, or drag with two fingers on a trackpad.
-- **Frame-by-frame navigation:** Use the arrow keys to move one frame at a time.
+### Cropping
 
-### ▶️ Seamless Preview & Undo
+Draw a crop box over the part of the screen you actually want to show, with guides to help you frame it nicely. Great for cutting out your desktop clutter and keeping the focus on your app window.
 
-- **Instant scrubbing:** Generates a low-resolution image sequence of the video at import time, allowing the preview to update quickly as you scrub the timeline without loading screens. Displays low-resolution images while scrubbing for a responsive experience, then switches to the full-resolution frame as soon as you release the mouse.
-- **Automatic codec support:** Generates background proxies for video codecs that Qt cannot natively play.
+![Cropping a video](./assets/crop-demo.webp)
 
-## Interface Layout
+### Undo
 
-The interface is organized into three main panels:
+Made a mistake? Every edit can be undone from the toolbar.
 
-### 1. Video Preview Panel (top left)
+## Exporting
 
-- Shows real-time playback.
-- Provides interactive crop region controls.
+When you're happy with it, export. GiffyPy defaults to **WebP** — a lightweight animated image format that looks great and loads fast, which is exactly what you want for a README. GIF, MP4, and a few other formats are also available if you need them.
 
-### 2. Interactive Timeline (bottom left)
+You can save over the original, save it as a new numbered copy, or choose a new name and location — whichever fits your workflow.
 
-- Displays all clips sequentially.
-- Scrub the top ruler.
-- Trim clips using their handles.
-- Reorder segments easily.
+![Exporting a clip](./assets/export-demo.webp)
 
-### 3. Export Panel (right side, from top to bottom)
+## Starting Over
 
-Fine-tune your export settings before saving:
+Want to clear everything and begin a new clip? Use **Discard and Start Over** — it resets the app without closing it.
 
-- **Format**
-- **FPS**
-- **Resolution scale**
-- **Output quality**
+## Getting GiffyPy
 
-Choose how to save using one of the four export buttons: **Overwrite, Numbered Copy, Save To…, or Copy to Clipboard**.
+**Option 1 — Just want to use the app:**
 
-## Prerequisites
+1. Download the zip and extract it.
+2. Open GiffyPy.
+3. Optionally, run the included `create_shortcut.bat` script to add it to your Start Menu.
 
-**FFmpeg** should be installed and available in your `PATH`.
+**Option 2 — Want to build it yourself:**
 
----
+1. Download the source code zip and extract it.
+2. Double-click the included `package.bat` script — it takes care of everything and builds the app for you.
 
-## Keyboard Shortcuts
+Works entirely with a mouse or touchpad — no special hardware needed.
 
-| Shortcut | Action |
-|---|---|
-| `Space` | Play / Pause |
-| `S` | Split clip at current playhead position |
-| `Delete` | Delete selected clip segment |
-| `Ctrl + Z` | Undo last edit action |
-| `Ctrl + O` | Open video file dialog |
-| `Left Arrow` | Step 1 frame backward |
-| `Right Arrow` | Step 1 frame forward |
-| `Ctrl + =` / `Ctrl + +` | Zoom in timeline |
-| `Ctrl + -` | Zoom out timeline |
-| `Ctrl + 0` | Fit timeline to view |
-| `Middle-Click Drag` | Pan timeline horizontally |
-| `Ctrl + Scroll` | Zoom timeline centered at mouse cursor |
+## Want to know how it's built?
 
-## Packaging to Standalone Executable (Windows)
-
-To build a standalone executable on Windows using PyInstaller:
-
-Run the following command:
-
-```cmd
-package.bat
-```
-
-This compiles the app using `main.py` and includes `icon.ico`.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for a technical look under the hood.
