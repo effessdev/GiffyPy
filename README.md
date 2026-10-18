@@ -4,7 +4,7 @@ Record your screen, edit it, and drop it straight into your README. GiffyPy is a
 
 > Every animated image in this README was recorded, edited, and exported entirely with GiffyPy — start to finish, no other tools involved. 🙂
 
-![GiffyPy overview](./assets/overview-demo.webp)
+<img width="1462" height="770" alt="giffypy_record_d5d337859238489daff07d281f96d081" src="https://github.com/user-attachments/assets/625c2816-da94-4cec-b0bd-fe98c79dd5af" />
 
 ## How it works
 
