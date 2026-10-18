@@ -136,6 +136,7 @@ if errorlevel 1 (
 
 set "SHORTCUT_SCRIPT_SRC=%~dp0scripts\create_shortcut.bat"
 set "DIST_DIR=%~dp0dist\GiffyPy"
+set "EXE_PATH=%DIST_DIR%\GiffyPy.exe"
 
 if not exist "%SHORTCUT_SCRIPT_SRC%" (
     echo [ERROR] create_shortcut.bat not found at: %SHORTCUT_SCRIPT_SRC%
@@ -157,7 +158,28 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [INFO] create_shortcut.bat copied successfully.
+if not exist "%EXE_PATH%" (
+    echo [ERROR] Build finished but GiffyPy.exe was not found at: %EXE_PATH%
+    popd
+    exit /b 1
+)
+
+echo.
+echo ========================================================
+echo   BUILD COMPLETE
+echo ========================================================
+echo.
+echo   GiffyPy.exe is ready at:
+echo.
+echo     %EXE_PATH%
+echo.
+echo   To create a Start Menu shortcut, run create_shortcut.bat
+echo   from inside that same folder:
+echo.
+echo     %DIST_DIR%\create_shortcut.bat
+echo.
+echo ========================================================
+echo.
 
 popd
 endlocal
