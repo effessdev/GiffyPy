@@ -191,12 +191,13 @@ class Main(QMainWindow):
 
     def _install_shortcuts(s):
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
+                        ("Left", lambda: s.step_frame(-1)), ("Right", lambda: s.step_frame(1)),
                         ("Ctrl+=", lambda: s.tl.zoom_by(1.5)), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
                         ("Ctrl+-", lambda: s.tl.zoom_by(1 / 1.5)), ("Ctrl+0", lambda: s.tl.fit_view())):
             QShortcut(QKeySequence(key), s, activated=fn)
 
     def _install_event_filters(s):
-        # Left/Right arrow keys step frames via eventFilter (proxy while held, real frame on release)
+        # Keep the resize hook only; arrow keys are handled by dedicated shortcuts so the preview view does not pan or steal them.
         s.view.viewport().installEventFilter(s)
         QApplication.instance().installEventFilter(s)
 
@@ -324,19 +325,10 @@ class Main(QMainWindow):
         s.editor.commit_step()
 
     def eventFilter(s, obj, ev):
-        """Left/Right arrows: preview-only while held; seek once on release."""
         t = ev.type()
         if t == QEvent.Resize and obj is s.view.viewport() and s.placeholder is not None and not s.path:
             s.setup_placeholder()
             return True
-        if t in (QEvent.KeyPress, QEvent.KeyRelease) and ev.key() in (Qt.Key_Left, Qt.Key_Right):
-            w = obj if isinstance(obj, QWidget) else None
-            if w is not None and (w is s or s.isAncestorOf(w)):
-                if t == QEvent.KeyPress:
-                    s.step_frame(-1 if ev.key() == Qt.Key_Left else 1)
-                elif not ev.isAutoRepeat():
-                    s.commit_step()
-                return True
         return super().eventFilter(obj, ev)
 
     def toggle_play(s):

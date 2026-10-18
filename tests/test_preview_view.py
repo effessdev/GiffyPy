@@ -2,7 +2,8 @@ from giffypy.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 from PySide6.QtCore import QPoint, QRectF, Qt, QProcess, QEvent, QMimeData, QUrl
-from PySide6.QtGui import QCloseEvent, QDropEvent
+from PySide6.QtGui import QCloseEvent, QDropEvent, QKeyEvent
+from PySide6.QtMultimedia import QMediaPlayer
 import os
 import pytest
 
@@ -148,6 +149,31 @@ def test_preview_view_zoom_disabled_when_no_file_selected():
     view.wheelEvent(_WheelEvent(120))
 
     assert view.transform().m11() == initial_scale
+
+
+def test_main_arrow_keys_are_not_hijacked_by_global_event_filter(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+    calls = []
+
+    monkeypatch.setattr(win, "step_frame", lambda direction: calls.append(direction))
+    monkeypatch.setattr(win, "commit_step", lambda: calls.append("commit"))
+
+    press = QKeyEvent(QEvent.KeyPress, Qt.Key_Left, Qt.NoModifier)
+    release = QKeyEvent(QEvent.KeyRelease, Qt.Key_Left, Qt.NoModifier)
+
+    assert win.eventFilter(win, press) is False
+    assert win.eventFilter(win, release) is False
+    assert calls == []
+
+
+def test_editor_playing_uses_qt_playback_state_enum(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    win = Main()
+
+    monkeypatch.setattr(win.player, "playbackState", lambda: QMediaPlayer.PlaybackState.PlayingState)
+
+    assert win.editor.playing() is True
 
 
 def test_main_uses_real_widget_placeholder_and_requires_explicit_open(monkeypatch):

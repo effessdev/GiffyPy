@@ -2,6 +2,7 @@ import copy
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCursor
+from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QToolTip
 
 from .constants import FPS_STEPS, MIN
@@ -12,7 +13,7 @@ class EditorController:
         self.window = window
 
     def playing(self):
-        return self.window.player.playbackState() == self.window.player.PlayingState
+        return self.window.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
 
     def step_frame(self, direction):
         """Move the playhead one frame at the export FPS; only repaints the low-res proxy."""

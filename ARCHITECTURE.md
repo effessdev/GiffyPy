@@ -58,7 +58,7 @@ Coordinates come in two flavors and the `Timeline` translates between them const
 
 Continuous playback doesn't use proxies: a 15 ms `QTimer` (`tick`) mirrors `player.position()` onto the timeline playhead and advances across clip boundaries, skipping the seek entirely when adjacent clips are contiguous in the source. Preview deliberately ignores per-clip speed — the player always runs at source rate — so a 2× clip's edit-time playhead advances at half wall-clock speed and preview duration equals source duration. Whenever any speed ≠ 1.0, `Main.refresh` shows an amber note explaining that the difference applies to the export only.
 
-Arrow-key stepping (`Left` / `Right`) is caught by an app-level `eventFilter` on `Main` (installed in `__init__`). While a key is held (including auto-repeat), each step advances the playhead by one export-frame and repaints only the low-res proxy via `show_preview`; the real `player.setPosition()` seek is issued once, on non-auto-repeat key release, through `commit_step`.
+Arrow-key stepping (`Left` / `Right`) is handled by dedicated `QShortcut`s installed in `Main._install_shortcuts()`, so the preview viewport never steals the key events. Each press advances the timeline playhead by one export frame, and the preview image is refreshed without letting the canvas pan or scroll.
 
 ## Timeline Widget (`timeline.py`)
 
