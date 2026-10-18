@@ -31,10 +31,10 @@ class ScreenRecorder:
             "gdigrab",
             "-framerate",
             str(int(fps)),
-            "-i",
-            "desktop",
             "-draw_mouse",
             "1" if capture_cursor else "0",
+            "-i",
+            "desktop",
         ]
         cmd.extend([
             "-c:v",

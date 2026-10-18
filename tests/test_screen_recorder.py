@@ -11,7 +11,7 @@ def test_screen_recorder_build_command_uses_desktop_capture_at_30fps(monkeypatch
 
     assert cmd[:5] == ["ffmpeg", "-y", "-f", "gdigrab", "-framerate"]
     assert "desktop" in cmd
-    assert cmd[cmd.index("-draw_mouse"):cmd.index("-draw_mouse") + 2] == ["-draw_mouse", "0"]
+    assert cmd[cmd.index("-framerate") + 2:cmd.index("desktop") + 1] == ["-draw_mouse", "0", "-i", "desktop"]
     assert cmd[cmd.index("-pix_fmt"):cmd.index("-pix_fmt") + 2] == ["-pix_fmt", "yuv420p"]
     assert cmd[-1].endswith("recording.mp4")
 
@@ -21,7 +21,7 @@ def test_screen_recorder_build_command_can_enable_cursor_capture(monkeypatch):
 
     cmd = ScreenRecorder.build_command(r"C:\\tmp\\recording.mp4", fps=30, capture_cursor=True)
 
-    assert cmd[cmd.index("-draw_mouse"):cmd.index("-draw_mouse") + 2] == ["-draw_mouse", "1"]
+    assert cmd[cmd.index("-framerate") + 2:cmd.index("desktop") + 1] == ["-draw_mouse", "1", "-i", "desktop"]
 
 
 def test_screen_recorder_start_rejects_immediate_failure(monkeypatch):
