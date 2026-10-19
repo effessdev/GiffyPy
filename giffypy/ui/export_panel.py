@@ -30,9 +30,8 @@ def _range_slider(callback, lo, hi, value):
     return sl
 
 
-def _export_button(text, name, tip, fn):
+def _export_button(text, tip, fn):
     b = QPushButton(text)
-    b.setObjectName(name)
     b.setMinimumHeight(40)
     b.setToolTip(tip)
     b.clicked.connect(fn)
@@ -67,19 +66,16 @@ def build_export_panel(window):
 
     window.overBtn = _export_button(
         "Overwrite Existing File",
-        "ow",
         "Save next to the source video, replacing any existing file (asks to confirm)",
         lambda: window.export("overwrite"),
     )
     window.numBtn = _export_button(
         "Save a Numbered Copy",
-        "go",
         "Save next to the source video as \"name (edited N)\" without replacing anything",
         lambda: window.export("numbered"),
     )
     window.saveAsBtn = _export_button(
         "Save To…",
-        "sa",
         "Choose where to save the file",
         lambda: window.export("saveas"),
     )
@@ -90,7 +86,7 @@ def build_export_panel(window):
     window.status = WrappingLabel()
     window.status.setWordWrap(True)
 
-    window.folder = QPushButton("Open folder")
+    window.folder = QPushButton("Open Video Source Folder")
     window.folder.setMinimumHeight(40)
     window.folder.clicked.connect(
         lambda: window.path and QDesktopServices.openUrl(

@@ -193,14 +193,6 @@ class Main(QMainWindow):
         sl.valueChanged.connect(callback)
         return sl
 
-    def _export_button(s, text, name, tip, fn):
-        b = QPushButton(text)
-        b.setObjectName(name)
-        b.setMinimumHeight(40)
-        b.setToolTip(tip)
-        b.clicked.connect(fn)
-        return b
-
     def _build_toolbar(s):
         build_toolbar(s)
 
