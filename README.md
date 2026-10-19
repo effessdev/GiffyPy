@@ -2,7 +2,7 @@
 
 Record your screen, edit it, and drop it into your README or DEV.to posts as animated WebP, GIF, MP4, etc.
 
-> Every animated image in this README was recorded, edited, and exported entirely with GiffyPy — start to finish, no other tools involved. 🙂
+> Every animated image in this README was recorded, edited, and exported entirely with GiffyPy. The demo below was made using 2 GiffyPy instances!
 
 <img width="1766" height="992" alt="giffypy_record_37fa53af277b48a48b1b76119e551920" src="https://github.com/user-attachments/assets/7d4cc4da-da1c-4ab8-97c4-eeef60b30e7b" />
 
