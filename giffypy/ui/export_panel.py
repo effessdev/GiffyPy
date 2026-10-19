@@ -100,10 +100,6 @@ def build_export_panel(window):
     window.discard_btn.setToolTip(
         "Discard the current edit and return to the start screen")
     window.discard_btn.setMinimumHeight(40)
-    window.discard_btn.setStyleSheet(
-        "QPushButton { background: #b42318; color: white; border: none; border-radius: 8px; }"
-        "QPushButton:hover { background: #d92d20; }"
-    )
     window.discard_btn.clicked.connect(lambda: confirm_reset(window))
     window.export_title = QLabel("<b>Export</b>")
     window.export_toggle = QPushButton("◀")

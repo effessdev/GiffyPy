@@ -36,10 +36,8 @@ class PlaceholderWidget(QWidget):
         self.setAcceptDrops(True)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet(
-            "QWidget { background: transparent; border: none; }"
+            "PlaceholderWidget { background: transparent; border: none; }"
             "QLabel { color: #d0d0d0; background: transparent; }"
-            "QPushButton { min-height: 36px; min-width: 160px; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
-            "QPushButton:hover { background: #3c7ae9; }"
         )
 
     def dragEnterEvent(self, event):
@@ -129,17 +127,15 @@ class Main(QMainWindow):
         s.open_file_btn = QPushButton("Open file")
         s.open_file_btn.setFocusPolicy(Qt.NoFocus)
         s.open_file_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        s.open_file_btn.setMinimumHeight(40)
         s.open_file_btn.clicked.connect(s.open)
-        s.open_file_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
-                                      "QPushButton:hover { background: #3c7ae9; }")
 
         s.record_screen_btn = QPushButton("Record screen")
         s.record_screen_btn.setFocusPolicy(Qt.NoFocus)
         s.record_screen_btn.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Fixed)
+        s.record_screen_btn.setMinimumHeight(40)
         s.record_screen_btn.clicked.connect(s.toggle_screen_recording)
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                          "QPushButton:hover { background: #4e4e4e; }")
 
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
@@ -264,15 +260,11 @@ class Main(QMainWindow):
         path = s.screen_recorder.start()
         if not path:
             s.record_screen_btn.setText("Record screen")
-            s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                              "QPushButton:hover { background: #4e4e4e; }")
             s.status.setText(
                 "⚠ Failed to start screen capture. Check that ffmpeg is available and try again.")
             return
 
         s.record_screen_btn.setText("Stop recording")
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #b42318; color: white; border: none; }"
-                                          "QPushButton:hover { background: #d92d20; }")
         s.status.setText(
             f"Recording whole display at 30 FPS → {os.path.basename(path)}")
 
@@ -285,8 +277,6 @@ class Main(QMainWindow):
         s.recording_stopping = True
         s.record_screen_btn.setEnabled(False)
         s.record_screen_btn.setText("Stopping...")
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #7a1f1f; color: white; border: none; opacity: 0.9; }"
-                                          "QPushButton:hover { background: #8e2727; }")
         s.status.setText("Finalizing recording…")
         QApplication.processEvents()
 
@@ -307,8 +297,6 @@ class Main(QMainWindow):
         s.rec_stop_thread = None
         s.record_screen_btn.setEnabled(True)
         s.record_screen_btn.setText("Record screen")
-        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                          "QPushButton:hover { background: #4e4e4e; }")
 
         if not path:
             s.status.setText("Recording ended without producing a file.")
@@ -320,11 +308,6 @@ class Main(QMainWindow):
         load_btn = msg.addButton(
             "Open Screen Recording", QMessageBox.AcceptRole)
         discard_btn = msg.addButton("Discard", QMessageBox.DestructiveRole)
-        discard_btn.setStyleSheet(
-            "QPushButton { background-color: #c62828; color: white; border: 1px solid #b71c1c; border-radius: 6px; padding: 6px 12px; }"
-            "QPushButton:hover { background-color: #d32f2f; }"
-            "QPushButton:pressed { background-color: #b71c1c; }"
-        )
         msg.setDefaultButton(load_btn)
         msg.exec()
 
