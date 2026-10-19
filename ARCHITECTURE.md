@@ -9,7 +9,7 @@ pipeline.
 
 - Python 3 (≥ 3.10), PySide6 (`QtWidgets`, `QtMultimedia`, `QtMultimediaWidgets`)
 - External `ffmpeg` / `ffprobe` via `QProcess` / `subprocess`
-- PyInstaller packaging (`GiffyPy.spec`, `package.bat`), Windows-focused
+- PyInstaller packaging (`GiffyPy.spec`, `build.bat`), Windows-focused
 
 ## Module Layout
 
@@ -88,7 +88,7 @@ core/export.py, core/media.py have no Qt imports
 
 ## Packaging
 
-`package.bat` ensures Python, ffmpeg, and PyInstaller are available (winget
+`build.bat` ensures Python, ffmpeg, and PyInstaller are available (winget
 installs if missing), builds via `GiffyPy.spec`, and ships `ffmpeg.exe` /
 `ffprobe.exe` and `create_shortcut.bat` inside `dist/GiffyPy`. Bundled
 binaries take precedence over `PATH` at runtime (`core/constants.py`).

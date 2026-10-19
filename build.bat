@@ -2,6 +2,24 @@
 setlocal enabledelayedexpansion
 pushd "%~dp0"
 
+goto :main
+
+:RefreshPath
+rem Reload PATH for this session from the registry so newly-installed
+rem tools (via winget) are visible without needing a new terminal.
+set "REG_SYS_PATH="
+set "REG_USR_PATH="
+for /f "tokens=2,*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul ^| findstr /i "Path"') do set "REG_SYS_PATH=%%B"
+for /f "tokens=2,*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul ^| findstr /i "Path"') do set "REG_USR_PATH=%%B"
+if defined REG_SYS_PATH if defined REG_USR_PATH (
+    set "PATH=%REG_SYS_PATH%;%REG_USR_PATH%"
+) else if defined REG_SYS_PATH (
+    set "PATH=%REG_SYS_PATH%"
+)
+exit /b 0
+
+:main
+
 set "FFMPEG_BIN="
 where ffmpeg >nul 2>nul
 if not errorlevel 1 (
@@ -12,7 +30,7 @@ if not errorlevel 1 (
 )
 
 echo [INFO] FFmpeg not found in PATH.
-echo [INFO] FFmpeg is required to build GiffyPy.exe.
+echo [INFO] FFmpeg is required to build GiffyPy.exe - it is used for video/GIF processing.
 choice /M "Install Gyan FFmpeg via winget now"
 if errorlevel 2 (
     echo [ERROR] FFmpeg is required but installation was declined.
@@ -22,12 +40,21 @@ if errorlevel 2 (
 )
 
 echo [INFO] Installing Gyan FFmpeg via winget...
-winget install --id Gyan.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
+winget install --id Gyan.Dev.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
 if errorlevel 1 (
     echo [ERROR] Failed to install Gyan FFmpeg via winget.
     popd
     pause
     exit /b 1
+)
+
+call :RefreshPath
+where ffmpeg >nul 2>nul
+if not errorlevel 1 (
+    for /f "delims=" %%I in ('where ffmpeg 2^>nul') do (
+        set "FFMPEG_BIN=%%~fI"
+        goto ffmpeg_ready
+    )
 )
 
 for %%P in (
@@ -69,7 +96,7 @@ if not errorlevel 1 (
 )
 
 echo [INFO] Python not found in PATH.
-echo [INFO] Python is required to build GiffyPy.exe.
+echo [INFO] Python is required to build GiffyPy.exe - it runs pip and PyInstaller for the build.
 choice /M "Install Python via winget now"
 if errorlevel 2 (
     echo [ERROR] Python is required but installation was declined.
@@ -85,6 +112,15 @@ if errorlevel 1 (
     popd
     pause
     exit /b 1
+)
+
+call :RefreshPath
+where python >nul 2>nul
+if not errorlevel 1 (
+    for /f "delims=" %%I in ('where python 2^>nul') do (
+        set "PYTHON_BIN=%%~fI"
+        goto python_ready
+    )
 )
 
 for %%P in (

@@ -69,7 +69,7 @@ Want to clear everything and begin a new clip? Use **Discard and Start Over** �
 **Option 2 — Want to build it yourself:**
 
 1. Download the source code zip and extract it.
-2. Double-click the included `package.bat` script — it takes care of everything and builds the app for you.
+2. Double-click the included `build.bat` script — it takes care of everything and builds the app for you.
 
 Works entirely with a mouse or touchpad — no special hardware needed.
 
