@@ -11,7 +11,17 @@ if not errorlevel 1 (
     )
 )
 
-echo [INFO] FFmpeg not found in PATH. Installing Gyan FFmpeg via winget...
+echo [INFO] FFmpeg not found in PATH.
+echo [INFO] FFmpeg is required to build GiffyPy.exe.
+choice /M "Install Gyan FFmpeg via winget now"
+if errorlevel 2 (
+    echo [ERROR] FFmpeg is required but installation was declined.
+    popd
+    pause
+    exit /b 1
+)
+
+echo [INFO] Installing Gyan FFmpeg via winget...
 winget install --id Gyan.Dev.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
 if errorlevel 1 (
     echo [ERROR] Failed to install Gyan FFmpeg via winget.
@@ -58,7 +68,17 @@ if not errorlevel 1 (
     )
 )
 
-echo [INFO] Python not found in PATH. Installing Python via winget...
+echo [INFO] Python not found in PATH.
+echo [INFO] Python is required to build GiffyPy.exe.
+choice /M "Install Python via winget now"
+if errorlevel 2 (
+    echo [ERROR] Python is required but installation was declined.
+    popd
+    pause
+    exit /b 1
+)
+
+echo [INFO] Installing Python via winget...
 winget install --id Python.Python.3.12 --exact --source winget --accept-source-agreements --accept-package-agreements
 if errorlevel 1 (
     echo [ERROR] Failed to install Python via winget.
