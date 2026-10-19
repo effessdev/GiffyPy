@@ -1,6 +1,6 @@
-# GiffyPy
+# GiffyPy: Record. Edit. Share.
 
-Record your screen, edit it, and drop it straight into your README. GiffyPy is a simple desktop app for turning a screen recording into a clean, lightweight animated clip, built specifically for showing off your product.
+Record your screen, edit it, and drop it into your README or DEV.to posts. GiffyPy is a simple desktop app for turning a screen recording into a clean, lightweight animated clip, built specifically for showing off your product.
 
 > Every animated image in this README was recorded, edited, and exported entirely with GiffyPy — start to finish, no other tools involved. 🙂
 
