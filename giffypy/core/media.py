@@ -3,19 +3,36 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 import json
+import os
 import subprocess
 
 from .constants import FFPROBE
 
 
+def _popen_kwargs():
+    """Console flags that stop ffprobe from flashing a terminal window.
+
+    The packaged app is built without a console, so launching the
+    console-subsystem ffprobe.exe allocates a fresh window. Suppress it
+    on Windows; leave POSIX (where these constants don't exist) alone.
+    """
+    if os.name == "nt":
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = subprocess.SW_HIDE
+        return {"startupinfo": si, "creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 def probe(path):
     r = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries",
                         "stream=width,height,duration,avg_frame_rate:format=duration", "-of", "json", path],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, **_popen_kwargs())
     try:
         j = json.loads(r.stdout)
     except json.JSONDecodeError as ex:
-        raise ValueError(f"Could not decode media metadata for: {path}") from ex
+        raise ValueError(
+            f"Could not decode media metadata for: {path}") from ex
     streams = j.get("streams") or []
     if not streams:
         raise ValueError(f"No video streams found in {path}")

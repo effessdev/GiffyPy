@@ -62,10 +62,12 @@ core/export.py, core/media.py have no Qt imports
   `scale` → format encoder. No intermediate files in the edit pipeline.
   `core/exporter.py` runs it, parses `-progress pipe:1`, and swaps a
   `.__tmp__` file into place on success.
-- **Threading.** One Qt thread for UI; ffprobe on load and recording stop run
-  in worker threads; proxy generation, codec fallback, and export run as
-  `QProcess` children. Temp artifacts live in the system temp dir; there is no
-  project file.
+- **Threading.** One Qt thread for UI; ffprobe (`core/media.py`) runs as a
+  blocking `subprocess` call in whatever thread triggers it (load, recording
+  stop), while proxy generation, codec fallback, and export run as
+  `QProcess` children. Because the packaged app has no console, ffprobe is
+  launched with Windows flags that suppress a terminal flash. Temp artifacts
+  live in the system temp dir; there is no project file.
 
 ## Look Here For
 
