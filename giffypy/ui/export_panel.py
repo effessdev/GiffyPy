@@ -18,7 +18,8 @@ class WrappingLabel(QLabel):
 
     def setText(self, text):
         if text:
-            text = text.replace("/", "/\u200b").replace("\\", "\\\u200b")
+            text = text.replace("/", "/\u200b").replace("\\",
+                                                        "\\\u200b").replace("_", "_\u200b")
         super().setText(text)
 
 
