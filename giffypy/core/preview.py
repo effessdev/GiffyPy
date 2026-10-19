@@ -32,6 +32,14 @@ class PreviewManager:
             self._clear_prev_proc(proc)
             return False
 
+    def _cleanup_old_dir(self, path):
+        """Remove a retired preview-proxy directory and drop it from the
+        window's stale-dir tracking list (a safety net for when the app
+        closes before the delayed cleanup below gets a chance to fire)."""
+        shutil.rmtree(path, ignore_errors=True)
+        if path in self.window.stale_prev_dirs:
+            self.window.stale_prev_dirs.remove(path)
+
     def start_preview(self, path):
         """Generate a small JPEG sequence in the background: scrub = O(1) file read, no decoding."""
         proc = self.window.prev_proc
@@ -60,8 +68,8 @@ class PreviewManager:
                 ) == "Building live preview…" else None,
             ))
         if old:
-            QTimer.singleShot(1000, lambda: shutil.rmtree(
-                old, ignore_errors=True))
+            self.window.stale_prev_dirs.append(old)
+            QTimer.singleShot(1000, lambda: self._cleanup_old_dir(old))
         self.window.status.setText("Building live preview…")
         self.window.prev_fps = min(
             240.0, self.window.src_fps) if self.window.src_fps > 0 else float(PREVIEW_FPS)

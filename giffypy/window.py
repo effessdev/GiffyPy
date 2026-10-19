@@ -4,20 +4,20 @@
 
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
-import copy
-from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent, Signal
-from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
-                               QGraphicsScene, QHBoxLayout, QLabel, QMainWindow,
-                               QMessageBox, QProgressBar, QPushButton, QSizePolicy, QSlider,
-                               QToolTip, QVBoxLayout, QWidget)
+from PySide6.QtCore import Qt, QSizeF, QUrl, QTimer, QProcess, QEvent, Signal
+from PySide6.QtGui import QColor, QShortcut, QKeySequence
+from PySide6.QtWidgets import (
+    QApplication, QCheckBox, QFileDialog, QFrame, QGraphicsPixmapItem,
+    QGraphicsScene, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 from .core.constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
-from .core.export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 from .ui.crop import CropItem, View
 from .ui.timeline import Timeline
 from .ui import apply_theme, build_export_panel, build_toolbar, update_toolbar_state
@@ -75,6 +75,7 @@ class Main(QMainWindow):
         s.exporter = ExportController(s)
         s.speed_before = None
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
+        s.stale_prev_dirs = []
         s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
 
         s._init_media()
@@ -108,7 +109,7 @@ class Main(QMainWindow):
             s.sink = s.vitem.videoSink()
             # Python name is videoFrameChanged; frameObserved is the C++ alias
             getattr(s.sink, 'videoFrameChanged', None).connect(s.on_real_frame)
-        except Exception:  # older PySide without QGraphicsVideoItem.videoSink()
+        except (AttributeError, RuntimeError):  # older PySide without QGraphicsVideoItem.videoSink()
             s.sink = None
         s.view = View(s.scene)
         s.placeholder = PlaceholderWidget(s.view.viewport(), s)
@@ -177,21 +178,6 @@ class Main(QMainWindow):
         s.timer.setInterval(15)
         s.timer.timeout.connect(s.tick)
         s.timer.start()
-
-    def _button(s, text, fn, tip="", checkable=False):
-        b = QPushButton(text)
-        b.setToolTip(tip)
-        b.setCheckable(checkable)
-        b.setFocusPolicy(Qt.NoFocus)
-        b.clicked.connect(fn)
-        return b
-
-    def _range_slider(s, lo, hi, value, callback):
-        sl = QSlider(Qt.Horizontal)
-        sl.setRange(lo, hi)
-        sl.setValue(value)
-        sl.valueChanged.connect(callback)
-        return sl
 
     def _build_toolbar(s):
         build_toolbar(s)
@@ -277,7 +263,7 @@ class Main(QMainWindow):
         def worker():
             try:
                 path = s.screen_recorder.stop()
-            except Exception:
+            except (OSError, RuntimeError, subprocess.SubprocessError):
                 path = None
             s.recording_stopped.emit(path)
 
@@ -492,6 +478,9 @@ class Main(QMainWindow):
                 s._clear_prev_proc(proc)
         if s.prev_dir:
             shutil.rmtree(s.prev_dir, ignore_errors=True)
+        for d in list(s.stale_prev_dirs):
+            shutil.rmtree(d, ignore_errors=True)
+        s.stale_prev_dirs.clear()
         super().closeEvent(e)
 
     # ---- export
