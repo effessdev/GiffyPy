@@ -46,6 +46,8 @@ class ScreenRecorder:
             "veryfast",
             "-crf",
             "18",
+            "-t",
+            "600",
             path,
         ])
         return cmd
@@ -57,8 +59,10 @@ class ScreenRecorder:
         if capture_cursor is not None:
             self.capture_cursor = bool(capture_cursor)
 
-        path = os.path.join(self.output_dir, f"{SCREEN_RECORDING_PREFIX}{uuid4().hex}.mp4")
-        cmd = self.build_command(path, fps=self.fps, ffmpeg_binary=FFMPEG, capture_cursor=self.capture_cursor)
+        path = os.path.join(
+            self.output_dir, f"{SCREEN_RECORDING_PREFIX}{uuid4().hex}.mp4")
+        cmd = self.build_command(
+            path, fps=self.fps, ffmpeg_binary=FFMPEG, capture_cursor=self.capture_cursor)
 
         startupinfo = None
         creationflags = 0
@@ -202,4 +206,3 @@ class ScreenRecorder:
             except OSError:
                 pass
         return path
-    
