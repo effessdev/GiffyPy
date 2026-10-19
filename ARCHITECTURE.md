@@ -1,108 +1,86 @@
 # Architecture
 
-GiffyPy is a single-window desktop video editor. PySide6 handles all UI and
-event flow; ffmpeg/ffprobe do the heavy media work in short-lived child
-processes. The Python layer owns only state and intent — never a pixel
-pipeline.
+GiffyPy is a screen recorder and video editor built on PySide6 for the UI and
+an out-of-process `ffmpeg`/`ffprobe` for all media work. The app never re-encodes
+while you edit; edits stay as lightweight metadata until export.
 
-## Tech Stack
+## Program flow
 
-- Python 3 (≥ 3.10), PySide6 (`QtWidgets`, `QtMultimedia`, `QtMultimediaWidgets`)
-- External `ffmpeg` / `ffprobe` via `QProcess` / `subprocess`
-- PyInstaller packaging (`GiffyPy.spec`, `build.bat`), Windows-focused
+The app moves through four stages, all driven from the main window:
 
-## Module Layout
+1. **Open** — a file path (dialog, drag-and-drop, or a fresh screen recording)
+   is probed with `ffprobe` off the GUI thread to get size, duration, and frame
+   rate.
+2. **Preview** — a low-resolution JPEG sequence is generated in the background
+   so scrubbing the timeline shows a frame instantly, while the real video plays
+   through Qt's media player.
+3. **Edit** — trims, splits, reordering, per-clip speed, and cropping mutate an
+   in-memory clip list. Nothing touches the source file.
+4. **Export** — the clip list plus crop/scale/fps/quality choices are turned
+   into an `ffmpeg` filtergraph and run as a separate process that writes the
+   final animated image or video.
 
-```
-main.py         entry point: QApplication, icon, argv file loading
-giffypy/
-  window.py     Main (QMainWindow): the only module that wires the others together
-  core/         logic, no widget rendering
-    constants.py        bundled-first ffmpeg/ffprobe discovery and tunables
-    media.py            ffprobe wrapper: probe() -> (width, height, duration, fps)
-    loader.py           MediaLoader: background metadata load and Qt signal bridge
-    preview.py          PreviewManager: proxy sequence generation and scrub painting
-    editor.py           EditorController: playback, split, trim, speed, undo glue
-    export.py           pure ffmpeg argument builder + numbered export naming
-    exporter.py         ExportController: export lifecycle, progress, save modes,
-                        button gating (all export-panel buttons disabled when no
-                        file is selected or an export is running)
-    screen_recorder.py  ScreenRecorder: gdigrab desktop capture wrapper
-    session.py          reset_session(): back to a clean placeholder state,
-                        refresh() re-gating the export-panel buttons
-  ui/           everything that renders or takes mouse/key input
-    timeline.py         custom-painted timeline: clips, scrub, trim, reorder, zoom
-    crop.py            CropItem overlay + View bounded navigation viewport
-    export_panel.py    export sidebar widgets
-    toolbar.py         toolbar controls and main window layout; toolbar
-                       buttons and the speed slider are disabled/enabled by
-                       `update_toolbar_state()` (called from `window.refresh()`)
-                       to mirror the editor's guards: no clips → play/split/
-                       zoom/fit/speed off, <2 clips → delete off, empty undo
-                       stack → undo off, no crop overlay → crop/reset-crop off
-    theme.py           shared color/theme styling incl. global button
-                       hover/pressed/disabled states
-```
+## Layering
 
-Dependencies stay acyclic; only `window.py` crosses layers:
+Code is split by whether it depends on Qt widgets or the app's live state:
 
-```
-main.py → window.py → {core/*, ui/*} → core/constants.py
-core/export.py, core/media.py have no Qt imports
-```
+- `giffypy/ui/` holds widgets and painting — timeline, crop overlay and preview
+  view, toolbar, export panel, theme. These know how to look and react to input.
+- `giffypy/core/` holds media probing, preview generation, editing logic, export
+  command building, screen recording, and session reset. Pure helpers here (the
+  ffmpeg argument builder, path numbering, `ffprobe` parsing) carry no UI import.
+- `giffypy/window.py` is the single orchestrator: it owns the window state and
+  wires UI widgets to the core controllers. No other module reaches across this
+  boundary.
+- `giffypy/core/constants.py` is the shared leaf — binary paths, tuning
+  constants, format lists — that everything may depend on and that depends on
+  nothing.
 
-## Core Concepts
+The dependency graph stays acyclic:
+`main.py` → `window.py` → `{core/*, ui/*}` → `core/constants.py`.
 
-- **Non-destructive edits.** The whole edit is `s.tl.segs`: a list of
-  `[start, end, speed]` triples in edit order over the untouched source file.
-  Split/trim/delete/reorder are pure list operations. Undo is a stack of
-  `deepcopy(segs)` snapshots. `s.crop.r` is a `QRectF` in source pixels.
-- **Two time domains.** Source time vs edit time; a segment's edit length is
-  `(end - start) / speed`. `ui/timeline.py` owns the translation.
-- **Instant preview via temporary image sequence.** While paused/scrubbing, we
-  never decode the real video. On load, `core/preview.py` spawns ffmpeg to
-  dump a low-res JPEG sequence (`f%06d.jpg`) into a temp dir; moving the
-  playhead is just an index lookup + `QPixmap` blit over the video item, so
-  scrubbing updates immediately even for heavy codecs. When the user commits a
-  position, the real player seeks and `QVideoSink` hides the overlay. Playback
-  itself uses `QMediaPlayer` at source speed (per-clip speed is export-only).
-- **Everything as a filtergraph.** Export builds one ffmpeg command
-  (`core/export.py`): per-segment `trim`+`setpts` → `concat` → `crop`/`fps`/
-  `scale` → format encoder. No intermediate files in the edit pipeline.
-  `core/exporter.py` runs it, parses `-progress pipe:1`, and swaps a
-  `.__tmp__` file into place on success.
-- **Threading.** One Qt thread for UI; ffprobe (`core/media.py`) runs as a
-  blocking `subprocess` call in whatever thread triggers it (load, recording
-  stop), while proxy generation, codec fallback, and export run as
-  `QProcess` children. Because the packaged app has no console, ffprobe is
-  launched with Windows flags that suppress a terminal flash. Temp artifacts
-  live in the system temp dir; there is no project file.
+## Non-destructive editing model
 
-## Look Here For
+The entire edit is a list of segments, each a `(start, end, speed)` triple in
+source-time. The timeline widget owns and displays this list; editing operations
+in the editor controller only reshape it. Undo works by snapshotting the list
+(`deepcopy`) before each change. Coordinate translation between edit-time
+(where the playhead sits on the timeline) and source-time (the frame to show or
+trim) happens wherever a segment is rendered or seeked. Export reads the same
+list to build its filtergraph, so what you scrub is exactly what ships.
 
-| Topic | Where |
-|---|---|
-| ffmpeg binary resolution, tunables (`PREVIEW_H`, `MIN`, FPS steps) | `core/constants.py` |
-| Gesture zones, hit-testing, zoom | `ui/timeline.py` |
-| Crop overlay handles, bounded pan/zoom viewport | `ui/crop.py` |
-| Speed slider UI + undo-on-drag | `ui/toolbar.py`, `core/editor.py` |
-| Save modes, GIF/WebP/WebM/MP4 encoding args | `core/export.py`, `core/exporter.py` |
-| Recording cap (`-t 600`), cursor flag, shutdown cleanup | `core/screen_recorder.py`, `window.closeEvent` |
-| Codec fallback transcode | `window.on_error` |
+## Live preview strategy
 
-## Conventions
+Two layers sit in the preview scene: the real video item (used during playback)
+and a proxy pixmap drawn on top while scrubbing. The proxy manager decodes a
+downscaled JPEG sequence at preview frame rate in a temp directory, so dragging
+the playhead is a single file read rather than a video seek. When the media
+player delivers a freshly decoded frame, the proxy layer steps aside.
 
-- Short names (`s`) in methods/locals are intentional, for compactness.
-- `QVideoSink` signal is `videoFrameChanged`; code guards the old
-  `frameObserved` alias via `getattr`.
-- Min clip length `0.05 s`; crop snaps to even pixels (YUV-friendly).
+## Process & threading model
 
-## Packaging
+The GUI runs on a single Qt thread. Everything heavy is pushed off it: media
+probing and recording finalization use short-lived worker threads that report
+back through Qt signals, while preview generation and export run as `QProcess`
+instances that write their output to a temporary file first and swap it into
+place on success. Shutdown paths stop any active recording and clean up temp
+artifacts so no orphaned `ffmpeg` or leftover files remain.
 
-`build.bat` ensures Python, ffmpeg, and PyInstaller are available (winget
-installs if missing), builds via `GiffyPy.spec`, and ships `ffmpeg.exe` /
-`ffprobe.exe` and `create_shortcut.bat` inside `dist/GiffyPy`. Bundled
-binaries take precedence over `PATH` at runtime (`core/constants.py`).
+## Look here for
 
-`scripts/measure_stop.py` is a dev-only diagnostic profiling how long stopping
-a recording takes.
+- Startup, resource paths: `main.py`
+- Window wiring, state, load lifecycle, close/cleanup: `giffypy/window.py`
+- `ffprobe`/`ffmpeg` discovery and tuning constants: `giffypy/core/constants.py`
+- Media probing: `giffypy/core/media.py`
+- Async file loading: `giffypy/core/loader.py`
+- Proxy sequence and scrub preview: `giffypy/core/preview.py`
+- Playback, split, delete, undo, speed, crop toggle: `giffypy/core/editor.py`
+- ffmpeg argument building and numbered export paths (pure): `giffypy/core/export.py`
+- Export run, progress, output swap: `giffypy/core/exporter.py`
+- Desktop capture start/stop/discard: `giffypy/core/screen_recorder.py`
+- Session reset back to the placeholder: `giffypy/core/session.py`
+- Timeline widget (segments, gestures, zoom): `giffypy/ui/timeline.py`
+- Crop overlay and pannable/zoomable preview view: `giffypy/ui/crop.py`
+- Toolbar construction and state: `giffypy/ui/toolbar.py`
+- Export panel widgets: `giffypy/ui/export_panel.py`
+- Global stylesheet/palette: `giffypy/ui/theme.py`
