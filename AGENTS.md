@@ -30,8 +30,19 @@ Add the following header while creating a new source file:
 # Copyright (C) 2026 Faseeh Zaman F S
 # SPDX-License-Identifier: GPL-3.0-only
 ```
-
 ## Docs
 
 After any change, update `ARCHITECTURE.md` so it still matches the code —
 edit the relevant section in place, no changelog.
+
+### What `ARCHITECTURE.md` is for
+
+It outlines the overall program flow, which parts do what, and how the application is structured, modularized, and separated.
+
+### What `ARCHITECTURE.md` is NOT for
+
+It is not for documenting the detailed workings of everything. Readers should refer to the source files for that. It should only serve as a map of what exists where, what things do, and where to look.
+
+### `ARCHITECTURE.md` conventions
+
+Do not use tables.
