@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 from giffypy.core.export import next_numbered_export_path
 
 

@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 import os
 import shutil
 import tempfile
@@ -52,12 +56,15 @@ class PreviewManager:
             lambda *_, o=proc: (
                 self._clear_prev_proc(o),
                 o.deleteLater(),
-                self.window.status.setText("") if self.window.status.text() == "Building live preview…" else None,
+                self.window.status.setText("") if self.window.status.text(
+                ) == "Building live preview…" else None,
             ))
         if old:
-            QTimer.singleShot(1000, lambda: shutil.rmtree(old, ignore_errors=True))
+            QTimer.singleShot(1000, lambda: shutil.rmtree(
+                old, ignore_errors=True))
         self.window.status.setText("Building live preview…")
-        self.window.prev_fps = min(240.0, self.window.src_fps) if self.window.src_fps > 0 else float(PREVIEW_FPS)
+        self.window.prev_fps = min(
+            240.0, self.window.src_fps) if self.window.src_fps > 0 else float(PREVIEW_FPS)
         proc.start(FFMPEG, ["-y", "-loglevel", "error", "-i", path, "-an", "-vf",
                             f"scale=-2:min({PREVIEW_H}\\,ih)", "-r", f"{self.window.prev_fps:.9g}",
                             "-q:v", "4", out])

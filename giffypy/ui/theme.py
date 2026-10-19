@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 def apply_theme(window):
     window.setStyleSheet(
         "QWidget{background:#25272b;color:#ddd} QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"

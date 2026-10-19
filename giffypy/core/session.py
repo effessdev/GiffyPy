@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 import shutil
 
 from PySide6.QtCore import QProcess, QUrl

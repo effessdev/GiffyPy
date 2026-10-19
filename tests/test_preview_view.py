@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 from giffypy.ui.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene

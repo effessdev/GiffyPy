@@ -21,6 +21,16 @@ own, so future edits never require loading the whole codebase.
 - Avoid new shared/global state. Pass values as arguments instead.
 - Prefer a new file over growing an existing one past one responsibility.
 
+## License
+
+Add the following header while creating a new source file:
+
+```python
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+```
+
 ## Docs
 
 After any change, update `ARCHITECTURE.md` so it still matches the code —

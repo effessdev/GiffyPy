@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 import copy
 
 from PySide6.QtCore import Qt
@@ -23,7 +27,8 @@ class EditorController:
             self.window.player.pause()
         fps = FPS_STEPS[self.window.fps.value()]
         dt = direction * (1.0 / fps)
-        new_head = max(0.0, min(self.window.tl.total(), self.window.tl.head + dt))
+        new_head = max(0.0, min(self.window.tl.total(),
+                       self.window.tl.head + dt))
         acc = 0.0
         for i, (b, e, sp) in enumerate(self.window.tl.segs):
             sp = max(0.01, sp)
@@ -114,13 +119,15 @@ class EditorController:
 
     def on_speed_press(self):
         self.window.speed_before = copy.deepcopy(self.window.tl.segs)
-        QToolTip.showText(QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
+        QToolTip.showText(
+            QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
 
     def on_speed(self, v):
         sp = max(0.1, v / 10.0)
         self.window.speedVal.setText(f"{sp:.1f}x")
         if self.window.speed.isSliderDown():
-            QToolTip.showText(QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
+            QToolTip.showText(
+                QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
         if self.window.tl.segs:
             self.window.tl.segs[self.window.tl.cur][2] = sp
             self.window.tl.update()

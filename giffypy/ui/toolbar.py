@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout, QWidget
 
@@ -13,14 +17,15 @@ def _button(window, text, fn, tip="", checkable=False):
 
 def build_toolbar(window):
     window.playBtn = _button(window, "▶ Play", window.toggle_play, "Space")
-    window.cropBtn = _button(window, "⛶ Crop", window.toggle_crop, "Show crop rectangle", True)
+    window.cropBtn = _button(
+        window, "⛶ Crop", window.toggle_crop, "Show crop rectangle", True)
     window.speed = QSlider(Qt.Horizontal)
     window.speed.setRange(1, 40)
     window.speed.setValue(10)
     window.speed.setFocusPolicy(Qt.NoFocus)
     window.speed.setFixedWidth(160)
     window.SPEED_NOTE = ("⚠️ Preview plays clips at source speed. Speed changes "
-                        "apply to the exported file only.")
+                         "apply to the exported file only.")
     window.speed.setToolTip(window.SPEED_NOTE)
     window.speed.valueChanged.connect(window.on_speed)
     window.speed.sliderPressed.connect(window.on_speed_press)
@@ -35,10 +40,13 @@ def build_toolbar(window):
         _button(window, "🗑 Delete clip", window.delete, "Del"),
         _button(window, "↶ Undo", window.do_undo, "Ctrl+Z"),
         window.cropBtn,
-        _button(window, "Reset crop", lambda: window.crop and window.crop.reset()),
-        _button(window, "🔍−", lambda: window.tl.zoom_by(1 / 1.5), "Zoom out (Ctrl+-)"),
+        _button(window, "Reset crop",
+                lambda: window.crop and window.crop.reset()),
+        _button(window, "🔍−", lambda: window.tl.zoom_by(
+            1 / 1.5), "Zoom out (Ctrl+-)"),
         _button(window, "🔍+", lambda: window.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
-        _button(window, "Fit", lambda: window.tl.fit_view(), "Fit timeline (Ctrl+0)"),
+        _button(window, "Fit", lambda: window.tl.fit_view(),
+                "Fit timeline (Ctrl+0)"),
     ):
         toolbar.addWidget(b)
     toolbar.addWidget(QLabel("Speed:"))

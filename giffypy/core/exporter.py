@@ -1,3 +1,7 @@
+# GiffyPy - Video editor
+# Copyright (C) 2026 Faseeh Zaman F S
+# SPDX-License-Identifier: GPL-3.0-only
+
 import os
 import tempfile
 
@@ -38,15 +42,19 @@ class ExportController:
         W, H = self.out_size()
         tot = self.window.tl.total()
         self.window.fpsL.setText(f"Framerate: {fps:g} fps")
-        self.window.scL.setText(f"Resolution: {self.window.scale.value()}%  ({W}×{H})")
+        self.window.scL.setText(
+            f"Resolution: {self.window.scale.value()}%  ({W}×{H})")
         self.window.qL.setText(f"Quality: {self.window.q.value()}" +
                                ("  (colors)" if self.window.fmt.currentText() == "GIF" else ""))
         self.window.info.setText(f"{tot:.1f}s → ~{int(tot * fps)} frames")
-        ready = bool(self.window.path and self.window.tl.segs) and not self.window.busy
+        ready = bool(
+            self.window.path and self.window.tl.segs) and not self.window.busy
         self.window.overBtn.setEnabled(ready)
-        self.window.numBtn.setEnabled(ready and not self.is_screen_recording_path())
+        self.window.numBtn.setEnabled(
+            ready and not self.is_screen_recording_path())
         self.window.saveAsBtn.setEnabled(ready)
-        self.window.folder.setEnabled(ready and not self.is_screen_recording_path())
+        self.window.folder.setEnabled(
+            ready and not self.is_screen_recording_path())
 
     def export(self, mode="numbered"):
         """mode: 'overwrite' | 'numbered' | 'saveas'"""
@@ -103,10 +111,12 @@ class ExportController:
                     t = int(ln.split("=")[1]) / 1e6
                 except ValueError:
                     continue
-                self.window.bar.setValue(min(99, int(100 * t / max(self.window.exp_total, 0.01))))
+                self.window.bar.setValue(
+                    min(99, int(100 * t / max(self.window.exp_total, 0.01))))
 
     def on_done(self, code, _):
-        err = bytes(self.window.proc.readAllStandardError()).decode(errors="ignore")
+        err = bytes(self.window.proc.readAllStandardError()
+                    ).decode(errors="ignore")
         self.window.busy = False
         self.refresh()
         if code == 0 and os.path.exists(self.window.tmp):
