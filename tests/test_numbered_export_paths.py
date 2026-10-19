@@ -1,4 +1,4 @@
-from giffypy.export import next_numbered_export_path
+from giffypy.core.export import next_numbered_export_path
 
 
 def test_next_numbered_export_path_starts_at_01_and_ignores_extension(tmp_path):

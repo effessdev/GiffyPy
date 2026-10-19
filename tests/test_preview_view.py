@@ -1,4 +1,4 @@
-from giffypy.crop import View
+from giffypy.ui.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 from PySide6.QtCore import QPoint, QRectF, Qt, QProcess, QEvent, QMimeData, QUrl
@@ -156,7 +156,8 @@ def test_main_arrow_keys_are_not_hijacked_by_global_event_filter(monkeypatch):
     win = Main()
     calls = []
 
-    monkeypatch.setattr(win, "step_frame", lambda direction: calls.append(direction))
+    monkeypatch.setattr(win, "step_frame",
+                        lambda direction: calls.append(direction))
     monkeypatch.setattr(win, "commit_step", lambda: calls.append("commit"))
 
     press = QKeyEvent(QEvent.KeyPress, Qt.Key_Left, Qt.NoModifier)
@@ -171,7 +172,8 @@ def test_editor_playing_uses_qt_playback_state_enum(monkeypatch):
     app = QApplication.instance() or QApplication([])
     win = Main()
 
-    monkeypatch.setattr(win.player, "playbackState", lambda: QMediaPlayer.PlaybackState.PlayingState)
+    monkeypatch.setattr(win.player, "playbackState",
+                        lambda: QMediaPlayer.PlaybackState.PlayingState)
 
     assert win.editor.playing() is True
 
@@ -312,12 +314,14 @@ def test_main_placeholder_accepts_files_dragged_onto_it(monkeypatch):
 
     mime = QMimeData()
     mime.setUrls([QUrl.fromLocalFile(r"C:\\fake\\clip.mp4")])
-    event = QDropEvent(QPoint(10, 10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+    event = QDropEvent(QPoint(10, 10), Qt.CopyAction,
+                       mime, Qt.LeftButton, Qt.NoModifier)
 
     win.placeholder.dragEnterEvent(event)
     win.placeholder.dropEvent(event)
 
-    assert os.path.normpath(loaded["path"]) == os.path.normpath(r"C:\fake\clip.mp4")
+    assert os.path.normpath(
+        loaded["path"]) == os.path.normpath(r"C:\fake\clip.mp4")
 
 
 def test_main_close_event_handles_deleted_preview_process():
@@ -326,7 +330,8 @@ def test_main_close_event_handles_deleted_preview_process():
 
     class StaleProcess(QProcess):
         def state(self):
-            raise RuntimeError("libshiboken: Internal C++ object (PySide6.QtCore.QProcess) already deleted.")
+            raise RuntimeError(
+                "libshiboken: Internal C++ object (PySide6.QtCore.QProcess) already deleted.")
 
     win.prev_proc = StaleProcess(win)
 

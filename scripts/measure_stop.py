@@ -36,7 +36,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from giffypy.screen_recorder import ScreenRecorder  # noqa: E402
+from giffypy.core.screen_recorder import ScreenRecorder  # noqa: E402
 
 RECORD_SECONDS = 10
 

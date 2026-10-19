@@ -28,17 +28,17 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
-from .constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
-from .export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
-from .crop import CropItem, View
-from .timeline import Timeline
+from .core.constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
+from .core.export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
+from .ui.crop import CropItem, View
+from .ui.timeline import Timeline
 from .ui import apply_theme, build_export_panel, build_toolbar
-from .loader import MediaLoader
-from .preview import PreviewManager
-from .editor import EditorController
-from .exporter import ExportController
-from .screen_recorder import ScreenRecorder
-from .session import reset_session as reset_session_controller
+from .core.loader import MediaLoader
+from .core.preview import PreviewManager
+from .core.editor import EditorController
+from .core.exporter import ExportController
+from .core.screen_recorder import ScreenRecorder
+from .core.session import reset_session as reset_session_controller
 
 
 class PlaceholderWidget(QWidget):

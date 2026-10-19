@@ -2,11 +2,11 @@ import os
 
 from PySide6.QtCore import QUrl, Qt
 
-from giffypy.session import reset_session
+from ..core.session import reset_session
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QSlider, QVBoxLayout, QWidget
 
-from giffypy.constants import FPS_STEPS
+from ..core.constants import FPS_STEPS
 
 
 def _range_slider(callback, lo, hi, value):
@@ -42,7 +42,8 @@ def build_export_panel(window):
     window.fmt.addItems(["WebP", "GIF", "MP4", "WebM", "MOV", "MKV"])
     window.fmt.currentIndexChanged.connect(window.refresh)
 
-    window.fps = _range_slider(window.refresh, 0, len(FPS_STEPS) - 1, FPS_STEPS.index(10))
+    window.fps = _range_slider(window.refresh, 0, len(
+        FPS_STEPS) - 1, FPS_STEPS.index(10))
     window.scale = _range_slider(window.refresh, 5, 100, 60)
     window.q = _range_slider(window.refresh, 1, 100, 75)
     window.fpsL, window.scL, window.qL, window.info = QLabel(), QLabel(), QLabel(), QLabel()
@@ -73,10 +74,12 @@ def build_export_panel(window):
     window.folder = QPushButton("Open folder")
     window.folder.setMinimumHeight(40)
     window.folder.clicked.connect(
-        lambda: window.path and QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(window.path)))
+        lambda: window.path and QDesktopServices.openUrl(
+            QUrl.fromLocalFile(os.path.dirname(window.path)))
     )
     window.discard_btn = QPushButton("Discard and Start Over")
-    window.discard_btn.setToolTip("Discard the current edit and return to the start screen")
+    window.discard_btn.setToolTip(
+        "Discard the current edit and return to the start screen")
     window.discard_btn.setMinimumHeight(40)
     window.discard_btn.setStyleSheet(
         "QPushButton { background: #b42318; color: white; border: none; border-radius: 8px; }"

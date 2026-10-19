@@ -20,7 +20,7 @@ from PySide6.QtCore import Qt, Signal, QRectF, QPointF
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollBar
 
-from .constants import MIN
+from ..core.constants import MIN
 
 
 class Timeline(QWidget):
