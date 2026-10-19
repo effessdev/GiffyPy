@@ -18,6 +18,7 @@ from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 from .core.constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
+from .core.segment import Segment
 from .ui.crop import CropItem, View
 from .ui.timeline import Timeline
 from .ui import apply_theme, build_export_panel, build_toolbar, update_toolbar_state
@@ -370,7 +371,7 @@ class Main(QMainWindow):
 
     def init_segs(s, dur):
         s.tl.dur = dur
-        s.tl.segs = [[0.0, dur, 1.0]]
+        s.tl.segs = [Segment(0.0, dur, 1.0)]
         s.tl.fit_view()
         s.tl.goto(0, 0.0)
         s.refresh()

@@ -10,6 +10,7 @@ from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QToolTip
 
 from .constants import FPS_STEPS, MIN
+from .segment import Segment
 
 
 class EditorController:
@@ -52,7 +53,7 @@ class EditorController:
             self.window.player.pause()
         else:
             if self.window.tl.head >= self.window.tl.total() - 0.03:
-                self.window.tl.goto(0, self.window.tl.segs[0][0])
+                self.window.tl.goto(0, self.window.tl.segs[0].start)
             self.window.pitem.hide()
             self.window.player.play()
 
@@ -65,7 +66,7 @@ class EditorController:
         b, e, _sp = self.window.tl.segs[i]
         if pos >= e - 0.01:
             if i + 1 < len(self.window.tl.segs):
-                nb = self.window.tl.segs[i + 1][0]
+                nb = self.window.tl.segs[i + 1].start
                 if abs(nb - e) < 0.03:
                     self.window.tl.track(i + 1, nb)
                 else:
@@ -84,7 +85,7 @@ class EditorController:
         if not b + MIN < p < e - MIN:
             return
         self.window.undo.append(copy.deepcopy(self.window.tl.segs))
-        self.window.tl.segs[i:i + 1] = [[b, p, sp], [p, e, sp]]
+        self.window.tl.segs[i:i + 1] = [Segment(b, p, sp), Segment(p, e, sp)]
         self.window.tl.track(i + 1, p)
         self.window.refresh()
 
@@ -111,7 +112,7 @@ class EditorController:
     def sync_speed(self):
         if not self.window.tl.segs:
             return
-        sp = max(0.1, min(4.0, self.window.tl.segs[self.window.tl.cur][2]))
+        sp = max(0.1, min(4.0, self.window.tl.segs[self.window.tl.cur].speed))
         self.window.speed.blockSignals(True)
         self.window.speed.setValue(int(round(sp * 10)))
         self.window.speed.blockSignals(False)
@@ -129,7 +130,7 @@ class EditorController:
             QToolTip.showText(
                 QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
         if self.window.tl.segs:
-            self.window.tl.segs[self.window.tl.cur][2] = sp
+            self.window.tl.segs[self.window.tl.cur].speed = sp
             self.window.tl.update()
             self.window.refresh()
 
