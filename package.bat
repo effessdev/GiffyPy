@@ -22,7 +22,7 @@ if errorlevel 2 (
 )
 
 echo [INFO] Installing Gyan FFmpeg via winget...
-winget install --id Gyan.Dev.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
+winget install --id Gyan.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
 if errorlevel 1 (
     echo [ERROR] Failed to install Gyan FFmpeg via winget.
     popd
