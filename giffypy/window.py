@@ -17,8 +17,9 @@
 import os
 import shutil
 import tempfile
+import threading
 import copy
-from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent
+from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent, Signal
 from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
                                QGraphicsScene, QHBoxLayout, QLabel, QMainWindow,
@@ -65,6 +66,10 @@ class PlaceholderWidget(QWidget):
 
 
 class Main(QMainWindow):
+    # Emitted from the recorder-stop worker thread with the finalized path
+    # (or None); queued delivery lands the handler back on the GUI thread.
+    recording_stopped = Signal(object)
+
     def __init__(s):
         super().__init__()
         s.setWindowTitle("GiffyPy")
@@ -73,7 +78,9 @@ class Main(QMainWindow):
         s.busy = False
         s.load_token = 0
         s.recording_stopping = False
+        s.rec_stop_thread = None
         s.screen_recorder = ScreenRecorder()
+        s.recording_stopped.connect(s._on_recording_stopped)
         s.loader = MediaLoader(s)
         s.loader.finished.connect(s._load_complete)
         s.loader.failed.connect(s._load_failed)
@@ -129,20 +136,22 @@ class Main(QMainWindow):
         icon.setStyleSheet("font-size: 48px; background: transparent;")
         title = QLabel("Drag & Drop Video Here")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
+        title.setStyleSheet(
+            "font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
         s.open_file_btn = QPushButton("Open file")
         s.open_file_btn.setFocusPolicy(Qt.NoFocus)
         s.open_file_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         s.open_file_btn.clicked.connect(s.open)
         s.open_file_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #2d6cdf; color: white; border: none; }"
-                                     "QPushButton:hover { background: #3c7ae9; }")
+                                      "QPushButton:hover { background: #3c7ae9; }")
 
         s.record_screen_btn = QPushButton("Record screen")
         s.record_screen_btn.setFocusPolicy(Qt.NoFocus)
-        s.record_screen_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        s.record_screen_btn.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Fixed)
         s.record_screen_btn.clicked.connect(s.toggle_screen_recording)
         s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                         "QPushButton:hover { background: #4e4e4e; }")
+                                          "QPushButton:hover { background: #4e4e4e; }")
 
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
@@ -160,7 +169,8 @@ class Main(QMainWindow):
         s.placeholder_layout.addWidget(title)
         s.placeholder_layout.addLayout(actions)
         s.placeholder_layout.addSpacing(4)
-        s.placeholder_layout.addWidget(s.capture_cursor_checkbox, 0, Qt.AlignCenter)
+        s.placeholder_layout.addWidget(
+            s.capture_cursor_checkbox, 0, Qt.AlignCenter)
         s.placeholder.hide()
         s.view.setBackgroundBrush(QColor("#111"))
         s.view.setFrameShape(QFrame.NoFrame)
@@ -218,8 +228,10 @@ class Main(QMainWindow):
 
     def _install_shortcuts(s):
         for key, fn in (("Space", s.toggle_play), ("S", s.split), ("Delete", s.delete), ("Ctrl+Z", s.do_undo), ("Ctrl+O", s.open),
-                        ("Left", lambda: s.step_frame(-1)), ("Right", lambda: s.step_frame(1)),
-                        ("Ctrl+=", lambda: s.tl.zoom_by(1.5)), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
+                        ("Left", lambda: s.step_frame(-1)
+                         ), ("Right", lambda: s.step_frame(1)),
+                        ("Ctrl+=", lambda: s.tl.zoom_by(1.5)
+                         ), ("Ctrl++", lambda: s.tl.zoom_by(1.5)),
                         ("Ctrl+-", lambda: s.tl.zoom_by(1 / 1.5)), ("Ctrl+0", lambda: s.tl.fit_view())):
             QShortcut(QKeySequence(key), s, activated=fn)
 
@@ -235,7 +247,8 @@ class Main(QMainWindow):
         for w in s.export_controls:
             w.setVisible(visible)
         s.export_toggle.setText("▶" if s.export_collapsed else "◀")
-        s.export_toggle.setToolTip("Expand export panel" if s.export_collapsed else "Collapse export panel")
+        s.export_toggle.setToolTip(
+            "Expand export panel" if s.export_collapsed else "Collapse export panel")
         s.export_panel.setFixedWidth(36 if s.export_collapsed else 250)
         s.export_panel.updateGeometry()
 
@@ -253,7 +266,8 @@ class Main(QMainWindow):
 
     def start_screen_recording(s):
         if not FFMPEG:
-            s.status.setText("⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
+            s.status.setText(
+                "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
             return
         if s.screen_recorder.is_recording:
             return
@@ -263,36 +277,50 @@ class Main(QMainWindow):
         if not path:
             s.record_screen_btn.setText("Record screen")
             s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                             "QPushButton:hover { background: #4e4e4e; }")
-            s.status.setText("⚠ Failed to start screen capture. Check that ffmpeg is available and try again.")
+                                              "QPushButton:hover { background: #4e4e4e; }")
+            s.status.setText(
+                "⚠ Failed to start screen capture. Check that ffmpeg is available and try again.")
             return
 
         s.record_screen_btn.setText("Stop recording")
         s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #b42318; color: white; border: none; }"
-                                         "QPushButton:hover { background: #d92d20; }")
-        s.status.setText(f"Recording whole display at 30 FPS → {os.path.basename(path)}")
+                                          "QPushButton:hover { background: #d92d20; }")
+        s.status.setText(
+            f"Recording whole display at 30 FPS → {os.path.basename(path)}")
 
     def stop_screen_recording(s):
-        if not s.screen_recorder.is_recording or s.screen_recorder is None:
+        if s.screen_recorder is None or not s.screen_recorder.is_recording:
             return
-        if getattr(s, "recording_stopping", False):
+        if s.recording_stopping:
             return
 
         s.recording_stopping = True
         s.record_screen_btn.setEnabled(False)
         s.record_screen_btn.setText("Stopping...")
         s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #7a1f1f; color: white; border: none; opacity: 0.9; }"
-                                         "QPushButton:hover { background: #8e2727; }")
+                                          "QPushButton:hover { background: #8e2727; }")
+        s.status.setText("Finalizing recording…")
         QApplication.processEvents()
 
-        try:
-            path = s.screen_recorder.stop()
-        finally:
-            s.recording_stopping = False
-            s.record_screen_btn.setEnabled(True)
-            s.record_screen_btn.setText("Record screen")
-            s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
-                                             "QPushButton:hover { background: #4e4e4e; }")
+        # ffmpeg finalization (~1s) runs off the GUI thread, like MediaLoader;
+        # the recording_stopped signal hands the result back to the event loop.
+        def worker():
+            try:
+                path = s.screen_recorder.stop()
+            except Exception:
+                path = None
+            s.recording_stopped.emit(path)
+
+        s.rec_stop_thread = threading.Thread(target=worker, daemon=True)
+        s.rec_stop_thread.start()
+
+    def _on_recording_stopped(s, path):
+        s.recording_stopping = False
+        s.rec_stop_thread = None
+        s.record_screen_btn.setEnabled(True)
+        s.record_screen_btn.setText("Record screen")
+        s.record_screen_btn.setStyleSheet("QPushButton { min-height: 36px; min-width: 0; border-radius: 8px; background: #404040; color: white; border: none; }"
+                                          "QPushButton:hover { background: #4e4e4e; }")
 
         if not path:
             s.status.setText("Recording ended without producing a file.")
@@ -301,7 +329,8 @@ class Main(QMainWindow):
         msg = QMessageBox(s)
         msg.setWindowTitle("Recording finished")
         msg.setText(f"Screen recoding was saved to:\n\n{path}")
-        load_btn = msg.addButton("Open Screen Recording", QMessageBox.AcceptRole)
+        load_btn = msg.addButton(
+            "Open Screen Recording", QMessageBox.AcceptRole)
         discard_btn = msg.addButton("Discard", QMessageBox.DestructiveRole)
         discard_btn.setStyleSheet(
             "QPushButton { background-color: #c62828; color: white; border: 1px solid #b71c1c; border-radius: 6px; padding: 6px 12px; }"
@@ -312,7 +341,8 @@ class Main(QMainWindow):
         msg.exec()
 
         if msg.clickedButton() is load_btn:
-            s.status.setText(f"Loaded screen recording: {os.path.basename(path)}")
+            s.status.setText(
+                f"Loaded screen recording: {os.path.basename(path)}")
             s.load(path)
         else:
             s.screen_recorder.discard()
@@ -338,7 +368,8 @@ class Main(QMainWindow):
         s.placeholder.setMinimumWidth(420)
         s.placeholder.setMaximumWidth(520)
         vp = s.view.viewport()
-        s.placeholder.move((vp.width() - s.placeholder.width()) // 2, (vp.height() - s.placeholder.height()) // 2)
+        s.placeholder.move((vp.width() - s.placeholder.width()) //
+                           2, (vp.height() - s.placeholder.height()) // 2)
         s.placeholder.show()
 
     def load(s, path):
@@ -473,6 +504,11 @@ class Main(QMainWindow):
         s.editor.toggle_crop()
 
     def closeEvent(s, e):
+        # If a recording stop is still finalizing, let its worker finish so
+        # ffmpeg isn't orphaned mid-shutdown (the daemon thread won't block exit).
+        th = s.rec_stop_thread
+        if th is not None and th.is_alive():
+            th.join(timeout=15)
         proc = s.prev_proc
         if proc is not None:
             try:
