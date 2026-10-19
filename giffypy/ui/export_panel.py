@@ -8,7 +8,7 @@ from PySide6.QtCore import QUrl, Qt
 
 from ..core.session import reset_session
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QSlider, QVBoxLayout, QWidget
 
 from ..core.constants import FPS_STEPS
 
@@ -98,6 +98,11 @@ def build_export_panel(window):
     window.discard_btn.setMinimumHeight(40)
     window.discard_btn.clicked.connect(lambda: confirm_reset(window))
     window.export_title = QLabel("<b>Export</b>")
+    window.controls_rule = QFrame()
+    window.controls_rule.setFrameShape(QFrame.HLine)
+    window.controls_rule.setFrameShadow(QFrame.Plain)
+    window.controls_rule.setStyleSheet(
+        "QFrame{color:#8a8f98}")
     window.export_toggle = QPushButton("◀")
     window.export_toggle.setToolTip("Collapse export panel")
     window.export_toggle.setFixedWidth(28)
@@ -118,13 +123,14 @@ def build_export_panel(window):
     right.addWidget(window.scale)
     right.addWidget(window.qL)
     right.addWidget(window.q)
+    right.addWidget(window.info)
     right.addWidget(window.overBtn)
     right.addWidget(window.numBtn)
     right.addWidget(window.saveAsBtn)
-    right.addWidget(window.info)        # Info label right under export buttons
+    right.addWidget(window.controls_rule)
     right.addWidget(window.folder)
     right.addWidget(window.discard_btn)
-    right.addWidget(window.status)      # Status label at the very bottom
+    right.addWidget(window.status)
 
     right.addStretch()
 
