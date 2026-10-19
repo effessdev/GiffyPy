@@ -34,6 +34,4 @@ Add the following header while creating a new source file:
 ## Docs
 
 After any change, update `ARCHITECTURE.md` so it still matches the code —
-edit the relevant section in place, no changelog. If unsure whether a
-change counts, update it anyway: a stale doc is worse than a small
-unnecessary edit.
+edit the relevant section in place, no changelog.

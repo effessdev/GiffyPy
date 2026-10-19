@@ -13,6 +13,15 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QProg
 from ..core.constants import FPS_STEPS
 
 
+class WrappingLabel(QLabel):
+    """A QLabel that automatically allows breaking long words/paths by inserting zero-width spaces."""
+
+    def setText(self, text):
+        if text:
+            text = text.replace("/", "/\u200b").replace("\\", "\\\u200b")
+        super().setText(text)
+
+
 def _range_slider(callback, lo, hi, value):
     sl = QSlider(Qt.Horizontal)
     sl.setRange(lo, hi)
@@ -50,7 +59,11 @@ def build_export_panel(window):
         FPS_STEPS) - 1, FPS_STEPS.index(10))
     window.scale = _range_slider(window.refresh, 5, 100, 60)
     window.q = _range_slider(window.refresh, 1, 100, 75)
-    window.fpsL, window.scL, window.qL, window.info = QLabel(), QLabel(), QLabel(), QLabel()
+
+    window.fpsL, window.scL, window.qL = QLabel(), QLabel(), QLabel()
+
+    window.info = WrappingLabel()
+    window.info.setWordWrap(True)
 
     window.overBtn = _export_button(
         "Overwrite Existing File",
@@ -73,8 +86,10 @@ def build_export_panel(window):
 
     window.bar = QProgressBar()
     window.bar.setRange(0, 100)
-    window.status = QLabel()
+
+    window.status = WrappingLabel()
     window.status.setWordWrap(True)
+
     window.folder = QPushButton("Open folder")
     window.folder.setMinimumHeight(40)
     window.folder.clicked.connect(
@@ -102,6 +117,25 @@ def build_export_panel(window):
     header.addStretch()
     header.addWidget(window.export_toggle)
     right.addLayout(header)
+
+    # Layout order: Export controls -> info -> folder -> discard_btn -> status
+    right.addWidget(window.fmt)
+    right.addWidget(window.fpsL)
+    right.addWidget(window.fps)
+    right.addWidget(window.scL)
+    right.addWidget(window.scale)
+    right.addWidget(window.qL)
+    right.addWidget(window.q)
+    right.addWidget(window.overBtn)
+    right.addWidget(window.numBtn)
+    right.addWidget(window.saveAsBtn)
+    right.addWidget(window.info)        # Info label right under export buttons
+    right.addWidget(window.folder)
+    right.addWidget(window.discard_btn)
+    right.addWidget(window.status)      # Status label at the very bottom
+
+    right.addStretch()
+
     window.export_controls = [
         window.fmt,
         window.fpsL,
@@ -110,17 +144,14 @@ def build_export_panel(window):
         window.scale,
         window.qL,
         window.q,
-        window.info,
         window.overBtn,
         window.numBtn,
         window.saveAsBtn,
-        window.status,
+        window.info,
         window.folder,
         window.discard_btn,
+        window.status,
     ]
-    for w in window.export_controls:
-        right.addWidget(w)
-    right.addStretch()
 
     panel = QWidget()
     panel.setLayout(right)
