@@ -504,11 +504,18 @@ class Main(QMainWindow):
         s.editor.toggle_crop()
 
     def closeEvent(s, e):
-        # If a recording stop is still finalizing, let its worker finish so
-        # ffmpeg isn't orphaned mid-shutdown (the daemon thread won't block exit).
         th = s.rec_stop_thread
         if th is not None and th.is_alive():
+            # A normal stop is already finalizing off-thread; let its worker
+            # finish so ffmpeg isn't orphaned mid-shutdown (the daemon thread
+            # won't block exit).
             th.join(timeout=15)
+        elif s.screen_recorder is not None and s.screen_recorder.is_recording:
+            # Closing mid-capture: the async stop/signal path can't complete
+            # during shutdown, so stop ffmpeg and delete the file here.
+            # discard() both finalizes the process and removes the temp file,
+            # leaving no orphaned ffmpeg or leftover capture behind.
+            s.screen_recorder.discard()
         proc = s.prev_proc
         if proc is not None:
             try:
