@@ -35,7 +35,8 @@ giffypy/
     crop.py            CropItem overlay + View bounded navigation viewport
     export_panel.py    export sidebar widgets
     toolbar.py         toolbar controls and main window layout
-    theme.py           shared color/theme styling
+    theme.py           shared color/theme styling incl. global button
+                       hover/pressed/disabled states
 ```
 
 Dependencies stay acyclic; only `window.py` crosses layers:

@@ -14,6 +14,8 @@ def apply_theme(window):
     window.setStyleSheet(
         "QWidget{background:#25272b;color:#ddd} "
         "QPushButton{padding:6px 10px;background:#3a3d44;border-radius:5px}"
+        "QPushButton:hover{background:#4a4e57}"
+        "QPushButton:pressed{background:#2f3237}"
         "QPushButton:disabled{background:#2b2d30;color:#555}"
         "QPushButton:checked{background:#3d8bfd}"
         # Background for the entire widget
