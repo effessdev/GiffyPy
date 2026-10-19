@@ -52,3 +52,4 @@ def reset_session(window):
     window.setWindowTitle("GiffyPy")
     window.setup_placeholder()
     window.placeholder.show()
+    window.refresh()

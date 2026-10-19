@@ -55,6 +55,7 @@ class ExportController:
         self.window.saveAsBtn.setEnabled(ready)
         self.window.folder.setEnabled(
             ready and not self.is_screen_recording_path())
+        self.window.discard_btn.setEnabled(ready)
 
     def export(self, mode="numbered"):
         """mode: 'overwrite' | 'numbered' | 'saveas'"""

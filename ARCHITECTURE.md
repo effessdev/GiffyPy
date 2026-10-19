@@ -24,9 +24,12 @@ giffypy/
     preview.py          PreviewManager: proxy sequence generation and scrub painting
     editor.py           EditorController: playback, split, trim, speed, undo glue
     export.py           pure ffmpeg argument builder + numbered export naming
-    exporter.py         ExportController: export lifecycle, progress, save modes
+    exporter.py         ExportController: export lifecycle, progress, save modes,
+                        button gating (all export-panel buttons disabled when no
+                        file is selected or an export is running)
     screen_recorder.py  ScreenRecorder: gdigrab desktop capture wrapper
-    session.py          reset_session(): back to a clean placeholder state
+    session.py          reset_session(): back to a clean placeholder state,
+                        refresh() re-gating the export-panel buttons
   ui/           everything that renders or takes mouse/key input
     timeline.py         custom-painted timeline: clips, scrub, trim, reorder, zoom
     crop.py            CropItem overlay + View bounded navigation viewport

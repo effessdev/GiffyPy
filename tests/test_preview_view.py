@@ -217,6 +217,9 @@ def test_discard_and_start_over_resets_session_without_quitting_app():
     assert win.tl.head == 0.0
     assert win.tl.drag is None
     assert win.placeholder.isVisible()
+    # Reset must re-gate the export panel buttons for the now-empty session.
+    assert win.discard_btn.isEnabled() is False
+    assert win.saveAsBtn.isEnabled() is False
 
 
 def test_timeline_reset_clears_all_clip_state():
@@ -246,6 +249,10 @@ def test_discard_and_start_over_requires_confirmation(monkeypatch):
 
     app = QApplication.instance() or QApplication([])
     win = Main()
+    # Discard is disabled until a file is loaded, so simulate one.
+    win.path = r"C:\fake\clip.mp4"
+    win.tl.segs = [(0.0, 1.0, 1.0)]
+    win.refresh()
     reset_calls = {"count": 0}
 
     def fake_question(*args, **kwargs):
