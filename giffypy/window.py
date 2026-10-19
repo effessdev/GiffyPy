@@ -295,6 +295,7 @@ class Main(QMainWindow):
             return
 
         msg = QMessageBox(s)
+        msg.setIcon(QMessageBox.Question)
         msg.setWindowTitle("Recording finished")
         msg.setText(f"Screen recoding was saved to:\n\n{path}")
         load_btn = msg.addButton(
