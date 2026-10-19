@@ -5,12 +5,18 @@
 import os
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 from uuid import uuid4
 
 from .constants import FFMPEG, SCREEN_RECORDING_PREFIX
 from .platform_utils import hidden_subprocess_kwargs
+
+#: Screen capture currently only implements the Windows gdigrab path.
+#: Other platforms would need avfoundation (macOS) / x11grab or pipewire
+#: (Linux) backends in build_command before this can be enabled there.
+SCREEN_RECORDING_SUPPORTED = sys.platform == "win32"
 
 
 class ScreenRecorder:

@@ -25,7 +25,7 @@ from .core.loader import MediaLoader
 from .core.preview import PreviewManager
 from .core.editor import EditorController
 from .core.exporter import ExportController
-from .core.screen_recorder import ScreenRecorder
+from .core.screen_recorder import ScreenRecorder, SCREEN_RECORDING_SUPPORTED
 from .core.session import reset_session as reset_session_controller
 
 
@@ -137,6 +137,10 @@ class Main(QMainWindow):
             QSizePolicy.Expanding, QSizePolicy.Fixed)
         s.record_screen_btn.setMinimumHeight(40)
         s.record_screen_btn.clicked.connect(s.toggle_screen_recording)
+        if not SCREEN_RECORDING_SUPPORTED:
+            s.record_screen_btn.setEnabled(False)
+            s.record_screen_btn.setToolTip(
+                "Screen recording is currently only supported on Windows.")
 
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
@@ -227,6 +231,10 @@ class Main(QMainWindow):
         s.screen_recorder.capture_cursor = bool(checked)
 
     def start_screen_recording(s):
+        if not SCREEN_RECORDING_SUPPORTED:
+            s.status.setText(
+                "⚠ Screen recording is currently only supported on Windows.")
+            return
         if not FFMPEG:
             s.status.setText(
                 "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
