@@ -34,7 +34,12 @@ giffypy/
     timeline.py         custom-painted timeline: clips, scrub, trim, reorder, zoom
     crop.py            CropItem overlay + View bounded navigation viewport
     export_panel.py    export sidebar widgets
-    toolbar.py         toolbar controls and main window layout
+    toolbar.py         toolbar controls and main window layout; toolbar
+                       buttons and the speed slider are disabled/enabled by
+                       `update_toolbar_state()` (called from `window.refresh()`)
+                       to mirror the editor's guards: no clips → play/split/
+                       zoom/fit/speed off, <2 clips → delete off, empty undo
+                       stack → undo off, no crop overlay → crop/reset-crop off
     theme.py           shared color/theme styling incl. global button
                        hover/pressed/disabled states
 ```

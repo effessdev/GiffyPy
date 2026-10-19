@@ -20,7 +20,7 @@ from .core.constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
 from .core.export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
 from .ui.crop import CropItem, View
 from .ui.timeline import Timeline
-from .ui import apply_theme, build_export_panel, build_toolbar
+from .ui import apply_theme, build_export_panel, build_toolbar, update_toolbar_state
 from .core.loader import MediaLoader
 from .core.preview import PreviewManager
 from .core.editor import EditorController
@@ -503,6 +503,7 @@ class Main(QMainWindow):
 
     def refresh(s):
         s.exporter.refresh()
+        update_toolbar_state(s)
 
     def export(s, mode="numbered"):
         s.exporter.export(mode)

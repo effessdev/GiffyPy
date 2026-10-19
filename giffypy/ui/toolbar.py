@@ -19,6 +19,17 @@ def build_toolbar(window):
     window.playBtn = _button(window, "▶ Play", window.toggle_play, "Space")
     window.cropBtn = _button(
         window, "⛶ Crop", window.toggle_crop, "Show crop rectangle", True)
+    window.splitBtn = _button(window, "✂ Split", window.split, "S")
+    window.deleteBtn = _button(window, "× Delete clip", window.delete, "Del")
+    window.undoBtn = _button(window, "↶ Undo", window.do_undo, "Ctrl+Z")
+    window.resetCropBtn = _button(
+        window, "Reset crop", lambda: window.crop and window.crop.reset())
+    window.zoomOutBtn = _button(
+        window, "⌕ −", lambda: window.tl.zoom_by(1 / 1.5), "Zoom out (Ctrl+-)")
+    window.zoomInBtn = _button(
+        window, "⌕ +", lambda: window.tl.zoom_by(1.5), "Zoom in (Ctrl+=)")
+    window.fitBtn = _button(
+        window, "Fit", lambda: window.tl.fit_view(), "Fit timeline (Ctrl+0)")
     window.speed = QSlider(Qt.Horizontal)
     window.speed.setRange(1, 40)
     window.speed.setValue(10)
@@ -36,17 +47,14 @@ def build_toolbar(window):
     toolbar = QHBoxLayout()
     for b in (
         window.playBtn,
-        _button(window, "✂ Split", window.split, "S"),
-        _button(window, "🗑 Delete clip", window.delete, "Del"),
-        _button(window, "↶ Undo", window.do_undo, "Ctrl+Z"),
+        window.splitBtn,
+        window.deleteBtn,
+        window.undoBtn,
         window.cropBtn,
-        _button(window, "Reset crop",
-                lambda: window.crop and window.crop.reset()),
-        _button(window, "🔍−", lambda: window.tl.zoom_by(
-            1 / 1.5), "Zoom out (Ctrl+-)"),
-        _button(window, "🔍+", lambda: window.tl.zoom_by(1.5), "Zoom in (Ctrl+=)"),
-        _button(window, "Fit", lambda: window.tl.fit_view(),
-                "Fit timeline (Ctrl+0)"),
+        window.resetCropBtn,
+        window.zoomOutBtn,
+        window.zoomInBtn,
+        window.fitBtn,
     ):
         toolbar.addWidget(b)
     toolbar.addWidget(QLabel("Speed:"))
@@ -72,3 +80,18 @@ def build_toolbar(window):
     container = QWidget()
     container.setLayout(root)
     window.setCentralWidget(container)
+
+
+def update_toolbar_state(window):
+    """Gate toolbar controls to mirror the guards in core/editor.py."""
+    has_clips = bool(window.tl.segs)
+    window.playBtn.setEnabled(has_clips)
+    window.splitBtn.setEnabled(has_clips)
+    window.deleteBtn.setEnabled(len(window.tl.segs) > 1)
+    window.undoBtn.setEnabled(bool(window.undo))
+    has_crop = window.crop is not None
+    window.cropBtn.setEnabled(has_crop)
+    window.resetCropBtn.setEnabled(has_crop)
+    for b in (window.zoomOutBtn, window.zoomInBtn, window.fitBtn):
+        b.setEnabled(has_clips)
+    window.speed.setEnabled(has_clips)
