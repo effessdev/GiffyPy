@@ -254,6 +254,9 @@ class Main(QMainWindow):
         s.record_screen_btn.setText("Stop recording")
         s.status.setText(
             f"Recording whole display at 30 FPS → {os.path.basename(path)}")
+        # Get out of the way so the capture doesn't include this window;
+        # the user restores it to click "Stop recording".
+        s.showMinimized()
 
     def stop_screen_recording(s):
         if s.screen_recorder is None or not s.screen_recorder.is_recording:
