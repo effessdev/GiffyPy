@@ -24,4 +24,6 @@ FPS_STEPS = [0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 30, 50, 60]
 PREVIEW_FPS, PREVIEW_H = 12, 480
 SCREEN_RECORDING_PREFIX = "giffypy_record_"
 MIN = 0.05  # minimum clip length (s)
+# clip speed range, shared by the slider and preview playback
+SPEED_MIN, SPEED_MAX = 0.1, 4.0
 FILTER = ("Video (*.mp4 *.mkv *.mov *.webm *.avi *.flv *.ts *.m2ts *.m4v *.wmv *.mpg *.mpeg *.ogv *.3gp *.gif);;All files (*)")

@@ -4,12 +4,10 @@
 
 import copy
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QCursor
 from PySide6.QtMultimedia import QMediaPlayer
-from PySide6.QtWidgets import QToolTip
 
-from .constants import FPS_STEPS, MIN
+from .constants import FPS_STEPS, MIN, SPEED_MIN
+from .playback import clip_speed, sync_rate
 from .segment import Segment
 
 
@@ -54,6 +52,8 @@ class EditorController:
         else:
             if self.window.tl.head >= self.window.tl.total() - 0.03:
                 self.window.tl.goto(0, self.window.tl.segs[0].start)
+            else:
+                self.set_rate(self.window.tl.cur)
             self.window.pitem.hide()
             self.window.player.play()
 
@@ -64,18 +64,21 @@ class EditorController:
         pos = self.window.player.position() / 1000
         i = self.window.tl.cur
         b, e, _sp = self.window.tl.segs[i]
-        if pos >= e - 0.01:
-            if i + 1 < len(self.window.tl.segs):
-                nb = self.window.tl.segs[i + 1].start
-                if abs(nb - e) < 0.03:
-                    self.window.tl.track(i + 1, nb)
-                else:
-                    self.window.tl.goto(i + 1, nb)
-            else:
-                self.window.player.pause()
-                self.window.tl.track(i, e)
-        else:
+        if pos < e - 0.01:
             self.window.tl.track(i, pos)
+            return
+        if i + 1 < len(self.window.tl.segs):
+            nb, ne, _ = self.window.tl.segs[i + 1]
+            if abs(nb - e) < 0.03:
+                # Contiguous clips: the player already runs on into the next
+                # clip's source, so follow its position instead of seeking.
+                self.set_rate(i + 1)
+                self.window.tl.track(i + 1, min(ne, pos))
+            else:
+                self.window.tl.goto(i + 1, nb)
+        else:
+            self.window.player.pause()
+            self.window.tl.track(i, e)
 
     def split(self):
         if not self.window.tl.segs:
@@ -109,10 +112,15 @@ class EditorController:
     def on_sel(self, i):
         self.sync_speed()
 
+    def set_rate(self, i):
+        """Run the preview player at clip i's speed so playback matches export."""
+        if self.window.tl.segs:
+            sync_rate(self.window.player, self.window.tl.segs[i])
+
     def sync_speed(self):
         if not self.window.tl.segs:
             return
-        sp = max(0.1, min(4.0, self.window.tl.segs[self.window.tl.cur].speed))
+        sp = clip_speed(self.window.tl.segs[self.window.tl.cur])
         self.window.speed.blockSignals(True)
         self.window.speed.setValue(int(round(sp * 10)))
         self.window.speed.blockSignals(False)
@@ -120,19 +128,20 @@ class EditorController:
 
     def on_speed_press(self):
         self.window.speed_before = copy.deepcopy(self.window.tl.segs)
-        QToolTip.showText(
-            QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
 
     def on_speed(self, v):
-        sp = max(0.1, v / 10.0)
+        sp = max(SPEED_MIN, v / 10.0)
         self.window.speedVal.setText(f"{sp:.1f}x")
-        if self.window.speed.isSliderDown():
-            QToolTip.showText(
-                QCursor.pos(), self.window.SPEED_NOTE, self.window.speed)
-        if self.window.tl.segs:
-            self.window.tl.segs[self.window.tl.cur].speed = sp
-            self.window.tl.update()
-            self.window.refresh()
+        if not self.window.tl.segs:
+            return
+        # Keep the frame under the playhead and re-time the playhead to the new
+        # speed, so the preview shows exactly what the export will contain.
+        src_t = self.window.tl.src()[1]
+        i = self.window.tl.cur
+        self.window.tl.segs[i].speed = sp
+        self.window.tl.track(i, src_t)
+        self.set_rate(i)
+        self.window.refresh()
 
     def on_speed_release(self):
         before = self.window.speed_before

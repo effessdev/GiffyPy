@@ -23,8 +23,10 @@ class FakeTimeline:
         self.track_calls = []
 
     def src(self):
+        """Same head -> (clip, source time) mapping as TimelineModel.src."""
         b, e, sp = self.segs[self.cur]
-        return self.cur, b
+        offset = sum((se - sb) / ss for sb, se, ss in self.segs[:self.cur])
+        return self.cur, b + max(0.0, self.head - offset) * max(0.01, sp)
 
     def goto(self, i, t):
         self.cur = i

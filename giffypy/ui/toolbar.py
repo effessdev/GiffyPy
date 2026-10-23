@@ -5,6 +5,8 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout, QWidget
 
+from ..core.constants import SPEED_MAX, SPEED_MIN
+
 
 def _button(window, text, fn, tip="", checkable=False):
     b = QPushButton(text)
@@ -31,13 +33,13 @@ def build_toolbar(window):
     window.fitBtn = _button(
         window, "Fit", lambda: window.tl.fit_view(), "Fit timeline (Ctrl+0)")
     window.speed = QSlider(Qt.Horizontal)
-    window.speed.setRange(1, 40)
+    window.speed.setRange(int(SPEED_MIN * 10), int(SPEED_MAX * 10))
     window.speed.setValue(10)
     window.speed.setFocusPolicy(Qt.NoFocus)
     window.speed.setFixedWidth(160)
-    window.SPEED_NOTE = ("⚠️ Preview plays clips at source speed. Speed changes "
-                         "apply to the exported file only.")
-    window.speed.setToolTip(window.SPEED_NOTE)
+    window.speed.setToolTip(
+        f"Speed of the selected clip ({SPEED_MIN:g}x – {SPEED_MAX:g}x): "
+        "applies to the preview and the export")
     window.speed.valueChanged.connect(window.on_speed)
     window.speed.sliderPressed.connect(window.on_speed_press)
     window.speed.sliderReleased.connect(window.on_speed_release)

@@ -10,6 +10,7 @@ from PySide6.QtCore import QProcess, QTimer
 from PySide6.QtGui import QImage, QPixmap
 
 from .constants import FFMPEG, PREVIEW_FPS, PREVIEW_H
+from .playback import sync_rate
 
 
 class PreviewManager:
@@ -99,6 +100,11 @@ class PreviewManager:
         self.window.pitem.show()
 
     def on_seek(self, i, t):
+        # A seek is the one place every playhead move lands, so it is also where
+        # the clip's speed is handed to the player: scrubbing, splitting,
+        # deleting, undo and playback crossing a cut all end up here.
+        if self.window.tl.segs:
+            sync_rate(self.window.player, self.window.tl.segs[i])
         self.window.player.setPosition(int(t * 1000))
         if not self.window.playing():
             self.show_preview(t)
