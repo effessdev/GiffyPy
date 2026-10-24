@@ -231,6 +231,11 @@ class Main(QMainWindow):
     def on_capture_cursor_changed(s, checked):
         s.screen_recorder.capture_cursor = bool(checked)
 
+    def set_capture_controls_locked(s, locked):
+        """Controls that would change what the running capture belongs to."""
+        s.open_file_btn.setEnabled(not locked)
+        s.capture_cursor_checkbox.setEnabled(not locked)
+
     def start_screen_recording(s):
         if not SCREEN_RECORDING_SUPPORTED:
             s.status.setText(
@@ -252,6 +257,7 @@ class Main(QMainWindow):
             return
 
         s.record_screen_btn.setText("Stop recording")
+        s.set_capture_controls_locked(True)
         s.status.setText(
             f"Recording whole display at 30 FPS → {os.path.basename(path)}")
         # Get out of the way so the capture doesn't include this window;
@@ -287,6 +293,7 @@ class Main(QMainWindow):
         s.rec_stop_thread = None
         s.record_screen_btn.setEnabled(True)
         s.record_screen_btn.setText("Record screen")
+        s.set_capture_controls_locked(False)
 
         if not path:
             s.status.setText("Recording ended without producing a file.")
@@ -335,6 +342,12 @@ class Main(QMainWindow):
         s.placeholder.show()
 
     def load(s, path):
+        if s.screen_recorder.is_recording:
+            # Loading hides the placeholder, which is where "Stop recording"
+            # lives; the capture would then keep running with no way to stop it.
+            s.status.setText(
+                "⚠ Stop the screen recording before opening a file.")
+            return
         s.loader.load(path)
 
     def _load_failed(s, token, path, ex):
