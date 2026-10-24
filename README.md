@@ -38,7 +38,7 @@ Drag the handles on either end of a clip to trim it down to just the part you wa
 
 ### Adjusting speed
 
-Select a clip and use the speed slider to slow it down or speed it up — useful for skipping over a slow loading screen, or slowing down a step people might miss.
+Select a clip and use the speed slider to slow it down or speed it up — useful for skipping over a slow loading screen, or slowing down a step people might miss. Playback in the preview follows the new speed straight away, so what you scrub through is what you export.
 
 ### Cropping
 

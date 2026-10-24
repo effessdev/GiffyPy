@@ -10,6 +10,7 @@ from PySide6.QtCore import QProcess, QTimer
 from PySide6.QtGui import QImage, QPixmap
 
 from .constants import FFMPEG, PREVIEW_FPS, PREVIEW_H
+from .playback import sync_rate
 
 
 class PreviewManager:
@@ -31,6 +32,14 @@ class PreviewManager:
         except RuntimeError:
             self._clear_prev_proc(proc)
             return False
+
+    def _cleanup_old_dir(self, path):
+        """Remove a retired preview-proxy directory and drop it from the
+        window's stale-dir tracking list (a safety net for when the app
+        closes before the delayed cleanup below gets a chance to fire)."""
+        shutil.rmtree(path, ignore_errors=True)
+        if path in self.window.stale_prev_dirs:
+            self.window.stale_prev_dirs.remove(path)
 
     def start_preview(self, path):
         """Generate a small JPEG sequence in the background: scrub = O(1) file read, no decoding."""
@@ -60,8 +69,8 @@ class PreviewManager:
                 ) == "Building live preview…" else None,
             ))
         if old:
-            QTimer.singleShot(1000, lambda: shutil.rmtree(
-                old, ignore_errors=True))
+            self.window.stale_prev_dirs.append(old)
+            QTimer.singleShot(1000, lambda: self._cleanup_old_dir(old))
         self.window.status.setText("Building live preview…")
         self.window.prev_fps = min(
             240.0, self.window.src_fps) if self.window.src_fps > 0 else float(PREVIEW_FPS)
@@ -91,6 +100,11 @@ class PreviewManager:
         self.window.pitem.show()
 
     def on_seek(self, i, t):
+        # A seek is the one place every playhead move lands, so it is also where
+        # the clip's speed is handed to the player: scrubbing, splitting,
+        # deleting, undo and playback crossing a cut all end up here.
+        if self.window.tl.segs:
+            sync_rate(self.window.player, self.window.tl.segs[i])
         self.window.player.setPosition(int(t * 1000))
         if not self.window.playing():
             self.show_preview(t)

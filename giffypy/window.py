@@ -4,20 +4,21 @@
 
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
-import copy
-from PySide6.QtCore import Qt, QRectF, QSizeF, QUrl, QTimer, QProcess, QEvent, Signal
-from PySide6.QtGui import QColor, QShortcut, QKeySequence, QDesktopServices, QImage, QPixmap, QCursor
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsPixmapItem,
-                               QGraphicsScene, QHBoxLayout, QLabel, QMainWindow,
-                               QMessageBox, QProgressBar, QPushButton, QSizePolicy, QSlider,
-                               QToolTip, QVBoxLayout, QWidget)
+from PySide6.QtCore import Qt, QSizeF, QUrl, QTimer, QProcess, QEvent, Signal
+from PySide6.QtGui import QColor, QShortcut, QKeySequence
+from PySide6.QtWidgets import (
+    QApplication, QCheckBox, QFileDialog, QFrame, QGraphicsPixmapItem,
+    QGraphicsScene, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QGraphicsVideoItem
 
 from .core.constants import FFMPEG, FFPROBE, FPS_STEPS, PREVIEW_FPS, MIN, FILTER
-from .core.export import EXT_MAP, build_ffmpeg_args, next_numbered_export_path
+from .core.segment import Segment
 from .ui.crop import CropItem, View
 from .ui.timeline import Timeline
 from .ui import apply_theme, build_export_panel, build_toolbar, update_toolbar_state
@@ -25,7 +26,7 @@ from .core.loader import MediaLoader
 from .core.preview import PreviewManager
 from .core.editor import EditorController
 from .core.exporter import ExportController
-from .core.screen_recorder import ScreenRecorder
+from .core.screen_recorder import ScreenRecorder, SCREEN_RECORDING_SUPPORTED
 from .core.session import reset_session as reset_session_controller
 
 
@@ -75,6 +76,7 @@ class Main(QMainWindow):
         s.exporter = ExportController(s)
         s.speed_before = None
         s.prev_dir, s.prev_proc, s.prev_cache, s.pidx = None, None, {}, -1
+        s.stale_prev_dirs = []
         s.src_fps, s.prev_fps = 0.0, float(PREVIEW_FPS)
 
         s._init_media()
@@ -108,7 +110,7 @@ class Main(QMainWindow):
             s.sink = s.vitem.videoSink()
             # Python name is videoFrameChanged; frameObserved is the C++ alias
             getattr(s.sink, 'videoFrameChanged', None).connect(s.on_real_frame)
-        except Exception:  # older PySide without QGraphicsVideoItem.videoSink()
+        except (AttributeError, RuntimeError):  # older PySide without QGraphicsVideoItem.videoSink()
             s.sink = None
         s.view = View(s.scene)
         s.placeholder = PlaceholderWidget(s.view.viewport(), s)
@@ -136,6 +138,10 @@ class Main(QMainWindow):
             QSizePolicy.Expanding, QSizePolicy.Fixed)
         s.record_screen_btn.setMinimumHeight(40)
         s.record_screen_btn.clicked.connect(s.toggle_screen_recording)
+        if not SCREEN_RECORDING_SUPPORTED:
+            s.record_screen_btn.setEnabled(False)
+            s.record_screen_btn.setToolTip(
+                "Screen recording is currently only supported on Windows.")
 
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
@@ -177,21 +183,6 @@ class Main(QMainWindow):
         s.timer.setInterval(15)
         s.timer.timeout.connect(s.tick)
         s.timer.start()
-
-    def _button(s, text, fn, tip="", checkable=False):
-        b = QPushButton(text)
-        b.setToolTip(tip)
-        b.setCheckable(checkable)
-        b.setFocusPolicy(Qt.NoFocus)
-        b.clicked.connect(fn)
-        return b
-
-    def _range_slider(s, lo, hi, value, callback):
-        sl = QSlider(Qt.Horizontal)
-        sl.setRange(lo, hi)
-        sl.setValue(value)
-        sl.valueChanged.connect(callback)
-        return sl
 
     def _build_toolbar(s):
         build_toolbar(s)
@@ -240,7 +231,16 @@ class Main(QMainWindow):
     def on_capture_cursor_changed(s, checked):
         s.screen_recorder.capture_cursor = bool(checked)
 
+    def set_capture_controls_locked(s, locked):
+        """Controls that would change what the running capture belongs to."""
+        s.open_file_btn.setEnabled(not locked)
+        s.capture_cursor_checkbox.setEnabled(not locked)
+
     def start_screen_recording(s):
+        if not SCREEN_RECORDING_SUPPORTED:
+            s.status.setText(
+                "⚠ Screen recording is currently only supported on Windows.")
+            return
         if not FFMPEG:
             s.status.setText(
                 "⚠ ffmpeg/ffprobe not found — reinstall the app or add ffmpeg to PATH.")
@@ -257,8 +257,12 @@ class Main(QMainWindow):
             return
 
         s.record_screen_btn.setText("Stop recording")
+        s.set_capture_controls_locked(True)
         s.status.setText(
             f"Recording whole display at 30 FPS → {os.path.basename(path)}")
+        # Get out of the way so the capture doesn't include this window;
+        # the user restores it to click "Stop recording".
+        s.showMinimized()
 
     def stop_screen_recording(s):
         if s.screen_recorder is None or not s.screen_recorder.is_recording:
@@ -277,7 +281,7 @@ class Main(QMainWindow):
         def worker():
             try:
                 path = s.screen_recorder.stop()
-            except Exception:
+            except (OSError, RuntimeError, subprocess.SubprocessError):
                 path = None
             s.recording_stopped.emit(path)
 
@@ -289,6 +293,7 @@ class Main(QMainWindow):
         s.rec_stop_thread = None
         s.record_screen_btn.setEnabled(True)
         s.record_screen_btn.setText("Record screen")
+        s.set_capture_controls_locked(False)
 
         if not path:
             s.status.setText("Recording ended without producing a file.")
@@ -337,6 +342,12 @@ class Main(QMainWindow):
         s.placeholder.show()
 
     def load(s, path):
+        if s.screen_recorder.is_recording:
+            # Loading hides the placeholder, which is where "Stop recording"
+            # lives; the capture would then keep running with no way to stop it.
+            s.status.setText(
+                "⚠ Stop the screen recording before opening a file.")
+            return
         s.loader.load(path)
 
     def _load_failed(s, token, path, ex):
@@ -376,7 +387,7 @@ class Main(QMainWindow):
 
     def init_segs(s, dur):
         s.tl.dur = dur
-        s.tl.segs = [[0.0, dur, 1.0]]
+        s.tl.segs = [Segment(0.0, dur, 1.0)]
         s.tl.fit_view()
         s.tl.goto(0, 0.0)
         s.refresh()
@@ -492,6 +503,9 @@ class Main(QMainWindow):
                 s._clear_prev_proc(proc)
         if s.prev_dir:
             shutil.rmtree(s.prev_dir, ignore_errors=True)
+        for d in list(s.stale_prev_dirs):
+            shutil.rmtree(d, ignore_errors=True)
+        s.stale_prev_dirs.clear()
         super().closeEvent(e)
 
     # ---- export

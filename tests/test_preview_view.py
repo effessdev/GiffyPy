@@ -2,6 +2,7 @@
 # Copyright (C) 2026 Faseeh Zaman F S
 # SPDX-License-Identifier: GPL-3.0-only
 
+from giffypy.core.segment import Segment
 from giffypy.ui.crop import View
 from giffypy.window import Main
 from PySide6.QtWidgets import QApplication, QGraphicsScene
@@ -251,7 +252,7 @@ def test_discard_and_start_over_requires_confirmation(monkeypatch):
     win = Main()
     # Discard is disabled until a file is loaded, so simulate one.
     win.path = r"C:\fake\clip.mp4"
-    win.tl.segs = [(0.0, 1.0, 1.0)]
+    win.tl.segs = [Segment(0.0, 1.0, 1.0)]
     win.refresh()
     reset_calls = {"count": 0}
 
@@ -280,7 +281,7 @@ def test_numbered_copy_button_disabled_for_screen_recordings(tmp_path):
     app = QApplication.instance() or QApplication([])
     win = Main()
     win.path = str(tmp_path / "giffypy_record_example.mp4")
-    win.tl.segs = [(0.0, 1.0, 1.0)]
+    win.tl.segs = [Segment(0.0, 1.0, 1.0)]
     win.busy = False
     win.refresh()
 

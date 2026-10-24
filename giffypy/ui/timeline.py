@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollBar
 
 from ..core.constants import MIN
+from ..core.timeline_model import TimelineModel
 
 
 class Timeline(QWidget):
@@ -24,7 +25,8 @@ class Timeline(QWidget):
 
     def __init__(s):
         super().__init__()
-        s.segs, s.dur, s.cur, s.head, s.drag = [], 0.0, 0, 0.0, None
+        s.model = TimelineModel()
+        s.drag = None
         s.before, s.pan = [], None
         # z = px/sec (locked after fit_view on load); ox = scroll offset (px)
         s.z, s.ox = 100.0, 0.0
@@ -38,13 +40,41 @@ class Timeline(QWidget):
         s.sb.valueChanged.connect(s.on_scrollbar)
         lay.addWidget(s.sb)
 
-    def total(s): return sum((e - b) / sp for b, e, sp in s.segs)
+    # Domain state (clip list, duration, selection, playhead) lives in
+    # TimelineModel; these properties keep every existing `s.segs`,
+    # `s.dur`, `s.cur`, `s.head` read/write in this file and in
+    # editor.py/window.py/exporter.py/session.py working unchanged.
+    @property
+    def segs(s): return s.model.segs
+
+    @segs.setter
+    def segs(s, v): s.model.segs = v
+
+    @property
+    def dur(s): return s.model.dur
+
+    @dur.setter
+    def dur(s, v): s.model.dur = v
+
+    @property
+    def cur(s): return s.model.cur
+
+    @cur.setter
+    def cur(s, v): s.model.cur = v
+
+    @property
+    def head(s): return s.model.head
+
+    @head.setter
+    def head(s, v): s.model.head = v
+
+    def total(s): return s.model.total()
     def fit(s): return max(1e-3, (s.width() - 2 * s.PAD) / (s.total() or 1e-9))
 
     def pps(s):
         return s.z
 
-    def offset(s, i): return sum((e - b) / sp for b, e, sp in s.segs[:i])
+    def offset(s, i): return s.model.offset(i)
 
     def lshift(s):
         """While dragging a clip's left edge, the clip keeps its right edge in place
@@ -103,10 +133,7 @@ class Timeline(QWidget):
         s.update()
 
     def reset(s):
-        s.segs = []
-        s.dur = 0.0
-        s.cur = 0
-        s.head = 0.0
+        s.model.reset()
         s.drag = None
         s.before = []
         s.pan = None
@@ -145,9 +172,7 @@ class Timeline(QWidget):
     def goto(s, i, t): s.track(i, t); s.seek.emit(i, t)
 
     def src(s):
-        b, e, sp = s.segs[s.cur]
-        sp = max(0.01, sp)
-        return s.cur, b + (s.head - s.offset(s.cur)) * sp
+        return s.model.src()
 
     def scrub(s, x):
         t = max(0, min(s.total(), (x - s.PAD + s.ox) / s.pps()))

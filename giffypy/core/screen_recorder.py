@@ -5,11 +5,18 @@
 import os
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 from uuid import uuid4
 
 from .constants import FFMPEG, SCREEN_RECORDING_PREFIX
+from .platform_utils import hidden_subprocess_kwargs
+
+#: Screen capture currently only implements the Windows gdigrab path.
+#: Other platforms would need avfoundation (macOS) / x11grab or pipewire
+#: (Linux) backends in build_command before this can be enabled there.
+SCREEN_RECORDING_SUPPORTED = sys.platform == "win32"
 
 
 class ScreenRecorder:
@@ -68,13 +75,8 @@ class ScreenRecorder:
         cmd = self.build_command(
             path, fps=self.fps, ffmpeg_binary=FFMPEG, capture_cursor=self.capture_cursor)
 
-        startupinfo = None
-        creationflags = 0
-        if os.name == "nt":
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+        popen_kwargs = hidden_subprocess_kwargs(
+            extra_creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
 
         self.output_path = path
         self.process = None
@@ -88,8 +90,7 @@ class ScreenRecorder:
                 # alone frequently truncates the MP4 before the moov atom is
                 # written, leaving an unplayable file.
                 stdin=subprocess.PIPE,
-                startupinfo=startupinfo,
-                creationflags=creationflags,
+                **popen_kwargs,
             )
         except OSError:
             self.output_path = None
