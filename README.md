@@ -1,74 +1,61 @@
 # GiffyPy: Record. Edit. Share.
 
-Record your screen, edit it, and drop it into your README or DEV.to posts as animated WebP, GIF, MP4, etc.
-
-> Every animated image in this README was recorded, edited, and exported entirely with GiffyPy. The demo below was made using 2 GiffyPy instances!
+Record your screen, edit it, and export it as animated WebP, GIF, MP4, etc., ready to drop into your README or DEV.to posts. **Full touchpad support. No mouse required.**
 
 <img width="1766" height="992" alt="giffypy_record_37fa53af277b48a48b1b76119e551920" src="https://github.com/user-attachments/assets/7d4cc4da-da1c-4ab8-97c4-eeef60b30e7b" />
 
 ## How it works
 
-It's three steps:
+1. **Record**: click to start, click to stop.
+2. **Edit**: trim, crop, reorder/combine clips, adjust speed.
+3. **Export**: save as an animated image (or video).
 
-1. **Record**: click once to start recording your screen, click again to stop.
-2. **Edit**: trim it down to the good part, crop out anything you don't want to show, reorder or combine clips, and adjust the speed if needed.
-3. **Export**: save it as an animated image (or optionally video), ready to paste into your README or docs.
-
-No separate recording app, no converting files, no fiddling with export settings. You stay focused on your product, not on video editing.
+No separate recording app, no file conversion, no export fiddling.
 
 <img width="1458" height="738" alt="giffypy-sr" src="https://github.com/user-attachments/assets/26e65f20-342a-4159-af86-5254e0c957a9" />
 
-## Fast, from the moment you click it
+## Fast startup & scrubbing (unlike ClipChamp)
 
-GiffyPy opens in under a second, and opening a video file is even quicker. There's no splash screen, no waiting for things to load. You click the icon and you're already recording or editing. For a tool meant to be used in the middle of writing docs, that speed is the point: it should never be the reason you put off making a quick demo clip.
+Opens in under a second. Scrubbing the timeline is instant and shows no buffering or loading screens.
 
-That speed carries into editing, too. Drag the playhead anywhere on the timeline and the preview updates instantly. No buffering, no loading screens, no waiting for a seek. Even on long recordings, scrubbing back and forth to find the exact moment you want feels completely immediate.
+## Photo-like cropping (unlike most other video editors)
 
-## Recording your screen
+Click **"Crop"** to show a crop box with framing guides to cut out a window or remove the taskbar. Zoom in to perfect your crop.
 
-Click **Record screen**, do the thing you want to show off, then click again to stop. You'll be asked whether to keep the recording or throw it away. If you keep it, it drops straight onto the timeline, ready to edit immediately. No saving a file and reopening it.
+## Screen recording
 
-There's also an optional toggle to show your mouse cursor in the recording (off by default, so your demos stay clean).
+Click **Record screen**, do your thing, click again to stop. Keep or discard the take. If kept, it lands on the timeline ready to edit. Record with or without cursor.
 
 ## Editing
 
-### Trimming and reordering
+- **Trim/split/reorder**: drag clip handles to trim; split and reorder clips to cut mistakes.
+- **Change clip speed**: slider per clip.
+- **Crop**: draw a crop box with framing guides to cut out desktop clutter. Zoom in to perfect your crop.
+- **Undo**: full undo history from the toolbar.
 
-Drag the handles on either end of a clip to trim it down to just the part you want. If you recorded more than you need, split it into pieces and drag them around to reorder. Handy for cutting out a mistake in the middle of a recording.
-
-### Adjusting speed
-
-Select a clip and use the speed slider to slow it down or speed it up. Useful for skipping over a slow loading screen, or slowing down a step people might miss. Playback in the preview follows the new speed straight away, so what you scrub through is what you export.
-
-### Cropping
-
-Draw a crop box over the part of the screen you actually want to show, with guides to help you frame it nicely. Great for cutting out your desktop clutter and keeping the focus on your app window.
-
-### Undo
-
-Made a mistake? Every edit can be undone from the toolbar.
+Shortcut keys to make splitting clips, deleting clips, etc. faster.
 
 ## Exporting
 
-When you're happy with it, export. GiffyPy defaults to **WebP**. It's a lightweight animated image format that looks great and loads fast, which is exactly what you want for a README. GIF, MP4, and a few other formats are also available if you need them.
+Defaults to **WebP** (lightweight & fast-loading, ideal for READMEs). GIF, MP4, and others available. Save over the original, as a new numbered copy, or to a new name/location. Adjust framerate, quality, and resolution.
 
-You can save over the original, save it as a new numbered copy, or choose a new name and location. Whichever fits your workflow.
+## Starting over
 
-## Starting Over
-
-Want to clear everything and begin a new clip? Use **Discard and Start Over**. It resets the app without closing it.
+Clicking **Discard and Start Over** clears the current session without closing the app.
 
 ## Getting GiffyPy
 
-**Option 1: Just want to use the app:**
-
-1. Download the zip and extract it.
+**Use the app:**
+1. Download and extract the zip.
 2. Open GiffyPy.
-3. Optionally, run the included `create_shortcut.bat` script to add it to your Start Menu.
+3. Optional: run `create_shortcut.bat` to add it to the Start Menu.
 
-**Option 2: Want to build it yourself:**
+**Build it yourself:**
+1. Download and extract the source zip.
+2. Double-click `build.bat` — it handles the full build.
 
-1. Download the source code zip and extract it.
-2. Double-click the included `build.bat` script. It takes care of everything and builds the app for you.
+## Note
 
-Works entirely with a mouse or touchpad. No special hardware needed.
+Every animated image in this README was recorded, edited, and exported with GiffyPy itself. I opened two GiffyPy windows so I could edit on one and record me editing on the other (yeah it's possible!).
+
+Thanks for reading! 🥳
