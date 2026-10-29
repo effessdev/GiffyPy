@@ -49,13 +49,18 @@ class EditorController:
             return
         if self.playing():
             self.window.player.pause()
+            return
+        if self.window.tl.head >= self.window.tl.total() - 0.03:
+            self.window.tl.goto(0, self.window.tl.segs[0].start)
         else:
-            if self.window.tl.head >= self.window.tl.total() - 0.03:
-                self.window.tl.goto(0, self.window.tl.segs[0].start)
-            else:
-                self.set_rate(self.window.tl.cur)
-            self.window.pitem.hide()
-            self.window.player.play()
+            # Arrow-key stepping only repaints the proxy, so the player can
+            # still sit where the mouse last left it. Hand the playhead
+            # position back to the player before starting, otherwise playback
+            # resumes from that stale position. on_seek also applies the
+            # current clip's speed.
+            self.window.on_seek(*self.window.tl.src())
+        self.window.pitem.hide()
+        self.window.player.play()
 
     def tick(self):
         self.window.playBtn.setText("⏸ Pause" if self.playing() else "▶ Play")

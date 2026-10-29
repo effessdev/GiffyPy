@@ -141,6 +141,9 @@ class FakeWindow:
     def playing(self):
         return self.player.playing
 
+    def on_seek(self, i, t):
+        PreviewManager(self).on_seek(i, t)
+
     def refresh(self):
         self.refresh_calls += 1
 
@@ -178,6 +181,21 @@ def test_resuming_playback_uses_the_selected_clips_speed():
 
     assert win.player.play_calls == 1
     assert win.player.rate == 3.0
+
+
+def test_starting_playback_seeks_the_player_to_the_stepped_playhead():
+    # Reproduce: scrub with the mouse, step with the arrow keys (proxy only),
+    # then press space — playback must start under the playhead, not where the
+    # mouse left the player.
+    win = FakeWindow([Segment(0.0, 10.0, 1.0)])
+    win.player.playing = False
+    win.player.position_ms = 8000  # stale: last mouse scrub position
+    win.tl.head = 3.0              # arrow keys moved the playhead since then
+
+    EditorController(win).toggle_play()
+
+    assert win.player.position_ms == 3000
+    assert win.player.play_calls == 1
 
 
 def test_playback_crossing_a_contiguous_cut_switches_to_the_next_speed():
