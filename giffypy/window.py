@@ -125,10 +125,14 @@ class Main(QMainWindow):
         icon = QLabel("🎬")
         icon.setAlignment(Qt.AlignCenter)
         icon.setStyleSheet("font-size: 48px; background: transparent;")
+        welcome = QLabel("Welcome to GiffyPy")
+        welcome.setAlignment(Qt.AlignCenter)
+        welcome.setStyleSheet(
+            "font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
         title = QLabel("Drag & Drop Video Here")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
-            "font-size: 20px; font-weight: 600; color: #e5e5e5; background: transparent;")
+            "font-size: 13px; color: #a0a0a0; background: transparent;")
         s.open_file_btn = QPushButton("Open file")
         s.open_file_btn.setFocusPolicy(Qt.NoFocus)
         s.open_file_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -159,6 +163,7 @@ class Main(QMainWindow):
         s.capture_cursor_checkbox.toggled.connect(s.on_capture_cursor_changed)
 
         s.placeholder_layout.addWidget(icon)
+        s.placeholder_layout.addWidget(welcome)
         s.placeholder_layout.addWidget(title)
         s.placeholder_layout.addLayout(actions)
         s.placeholder_layout.addSpacing(4)
