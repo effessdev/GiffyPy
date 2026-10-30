@@ -2,7 +2,16 @@
 # Copyright (C) 2026 Faseeh Zaman F S
 # SPDX-License-Identifier: GPL-3.0-only
 
+import os
+
 from PySide6.QtGui import QPalette, QColor
+
+
+# QCheckBox has no ::content support, so the tick of a checked box is a bundled
+# SVG; it lives next to this module and is copied into the bundle by the spec.
+CHECK_ICON = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "assets", "check.svg"
+).replace("\\", "/")
 
 
 # Thin, arrowless scrollbars that float over the content instead of sitting in
@@ -41,8 +50,20 @@ def apply_theme(window):
         "QPushButton:pressed{background:#2f3237}"
         "QPushButton:disabled{background:#2b2d30;color:#555}"
         "QPushButton:checked{background:#3d8bfd}"
-        # Background for the entire widget
-        "QCheckBox{background:#2b2d30;padding:5px;border-radius:4px;}"
-        "QGraphicsView{background:#111}"
+        # Every checkbox shares one look: a dark rounded box that turns white
+        # with an accent border and tick once checked. Styling ::indicator drops
+        # Qt's native glyph, so each state carries its own border and the tick
+        # is drawn from CHECK_ICON.
+        "QCheckBox{background:transparent;padding:5px;}"
+        "QCheckBox::indicator{width:15px;height:15px;border:1px solid #8a8f98;"
+        "border-radius:3px;background:#141618;}"
+        "QCheckBox::indicator:hover{border:1px solid #5d6270;background:#212429;}"
+        "QCheckBox::indicator:checked{width:15px;height:15px;border:1px solid #ddd;"
+        "border-radius:3px;background:#141618;image:url(%s);}"
+        "QCheckBox::indicator:checked:hover{border:1px solid #fff;background:#212429;}"
+        "QCheckBox::indicator:disabled{border:1px solid #33363b;background:#17191c;}"
+        "QCheckBox::indicator:checked:disabled{border:1px solid #5d6270;background:#17191c;}"
+        % CHECK_ICON
+        + "QGraphicsView{background:#111}"
         + SCROLLBAR_QSS
     )

@@ -25,7 +25,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.ico', '.')] + ffmpeg_files,
+    datas=[('icon.ico', '.'), ('giffypy/ui/assets/check.svg', 'giffypy/ui/assets')] + ffmpeg_files,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
