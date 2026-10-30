@@ -63,7 +63,7 @@ def build_toolbar(window):
 
     hint = QLabel(
         "Drag the top strip to scrub · drag a clip to reorder · drag clip edges to trim · S split · Del delete · "
-        "· Ctrl+Wheel zoom / two-finger zoom · middle-drag / two-finger drag pan")
+        "Ctrl+Wheel zoom / two-finger zoom · middle-drag / two-finger drag pan")
     hint.setStyleSheet("color:#888")
 
     left = QVBoxLayout()

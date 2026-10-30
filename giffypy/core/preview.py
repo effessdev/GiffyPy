@@ -16,6 +16,12 @@ from .playback import sync_rate
 class PreviewManager:
     def __init__(self, window):
         self.window = window
+        # True while the player sits where the playhead does. A seek always
+        # puts it there and playback keeps it there; only a proxy-only
+        # playhead move (arrow-key stepping) or a new source leaves it
+        # behind. toggle_play reads it to resume without seeking, since a
+        # seek is the slow path (demux + decode from the previous keyframe).
+        self.player_at_head = False
 
     def _clear_prev_proc(self, proc=None):
         if proc is None:
@@ -106,10 +112,19 @@ class PreviewManager:
         if self.window.tl.segs:
             sync_rate(self.window.player, self.window.tl.segs[i])
         self.window.player.setPosition(int(t * 1000))
+        self.player_at_head = True
         if not self.window.playing():
             self.show_preview(t)
             if self.window.sink is None:
                 QTimer.singleShot(300, self.window.pitem.hide)
+
+    def forget_player_position(self):
+        """The playhead moved without the player, so the two no longer agree."""
+        self.player_at_head = False
+
+    def on_source_changed(self, *_):
+        """A new source restarts the player, dropping it off the playhead."""
+        self.player_at_head = False
 
     def on_real_frame(self, *_):
         """QVideoSink delivered a freshly decoded frame -> retire the proxy."""

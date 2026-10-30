@@ -137,12 +137,13 @@ class FakeWindow:
         self.undo = []
         self.speed_before = None
         self.refresh_calls = 0
+        self.preview = PreviewManager(self)
 
     def playing(self):
         return self.player.playing
 
     def on_seek(self, i, t):
-        PreviewManager(self).on_seek(i, t)
+        self.preview.on_seek(i, t)
 
     def refresh(self):
         self.refresh_calls += 1

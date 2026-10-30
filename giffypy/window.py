@@ -95,6 +95,9 @@ class Main(QMainWindow):
 
     def _init_media(s):
         s.player = QMediaPlayer()
+        # A new source (load, or the proxy fallback) restarts the player, so it
+        # can no longer be assumed to sit on the playhead.
+        s.player.sourceChanged.connect(s.preview.on_source_changed)
         s.vitem = QGraphicsVideoItem()
         s.player.setVideoOutput(s.vitem)
 

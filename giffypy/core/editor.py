@@ -24,6 +24,8 @@ class EditorController:
             return
         if self.playing():
             self.window.player.pause()
+        # Stepping never touches the player, so resuming from here needs a seek.
+        self.window.preview.forget_player_position()
         fps = FPS_STEPS[self.window.fps.value()]
         dt = direction * (1.0 / fps)
         new_head = max(0.0, min(self.window.tl.total(),
@@ -52,13 +54,17 @@ class EditorController:
             return
         if self.window.tl.head >= self.window.tl.total() - 0.03:
             self.window.tl.goto(0, self.window.tl.segs[0].start)
-        else:
+        elif not self.window.preview.player_at_head:
             # Arrow-key stepping only repaints the proxy, so the player can
             # still sit where the mouse last left it. Hand the playhead
             # position back to the player before starting, otherwise playback
-            # resumes from that stale position. on_seek also applies the
-            # current clip's speed.
+            # resumes from that stale position.
             self.window.on_seek(*self.window.tl.src())
+        # When the player already sits on the playhead (a plain pause/resume)
+        # the seek above is skipped: seeking re-demuxes and decodes from the
+        # previous keyframe, which is what made playback take a moment to
+        # start. The speed still has to be the selected clip's either way.
+        self.set_rate(self.window.tl.cur)
         self.window.pitem.hide()
         self.window.player.play()
 
