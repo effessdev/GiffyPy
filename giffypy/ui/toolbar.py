@@ -37,9 +37,6 @@ def build_toolbar(window):
     window.speed.setValue(10)
     window.speed.setFocusPolicy(Qt.NoFocus)
     window.speed.setFixedWidth(160)
-    window.speed.setToolTip(
-        f"Speed of the selected clip ({SPEED_MIN:g}x – {SPEED_MAX:g}x): "
-        "applies to the preview and the export")
     window.speed.valueChanged.connect(window.on_speed)
     window.speed.sliderPressed.connect(window.on_speed_press)
     window.speed.sliderReleased.connect(window.on_speed_release)
