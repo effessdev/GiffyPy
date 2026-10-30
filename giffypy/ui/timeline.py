@@ -20,7 +20,7 @@ class Timeline(QWidget):
     committed = Signal(object)     # previous state (for undo)
     changed = Signal()
     selected = Signal(int)         # current clip changed
-    PAD, EDGE, RULER, SB = 10, 7, 20, 14
+    PAD, EDGE, RULER, SB = 10, 7, 20, 12
     MAXZ = 4000.0  # max zoom (pixels per second)
 
     def __init__(s):
