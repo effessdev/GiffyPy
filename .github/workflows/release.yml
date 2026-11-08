@@ -25,9 +25,9 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg (Gyan full build, matches build.bat)
         run: |
-          choco install ffmpeg -y
+          winget install --id Gyan.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
           ffmpeg -version
 
       - name: Install dependencies
