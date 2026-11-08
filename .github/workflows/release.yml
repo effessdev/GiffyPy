@@ -28,7 +28,28 @@ jobs:
       - name: Install FFmpeg (Gyan full build, matches build.bat)
         run: |
           winget install --id Gyan.FFmpeg --exact --source winget --accept-source-agreements --accept-package-agreements
+        shell: pwsh
+
+      - name: Add FFmpeg to PATH
+        run: |
+          $ffmpegExe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $ffmpegExe) {
+            $ffmpegExe = Get-ChildItem -Path "C:\Program Files\WinGet\Packages" -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $ffmpegExe) {
+            Write-Error "ffmpeg.exe not found after winget install"
+            exit 1
+          }
+          $ffmpegDir = $ffmpegExe.DirectoryName
+          Write-Host "Found FFmpeg at: $ffmpegDir"
+          Add-Content -Path $env:GITHUB_PATH -Value $ffmpegDir
+        shell: pwsh
+
+      - name: Verify FFmpeg on PATH
+        run: |
           ffmpeg -version
+          ffprobe -version
+        shell: pwsh
 
       - name: Install dependencies
         run: |
